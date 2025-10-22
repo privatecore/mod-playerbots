@@ -67,8 +67,8 @@ Player* RandomPlayerbotFactory::CreateRandomBot(WorldSession* session, uint8 cls
     std::vector<uint8> raceOptions;
     for (uint8 race = RACE_HUMAN; race < MAX_RACES; ++race)
     {
-        // Force 50/50 faction distribution by first choosing faction, then race.
-        // Without this check will be equal race distribution for both factions.
+        // Try to get 50/50 faction distribution for random bot population balance.
+        // Without this check, races from the faction with more class options would dominate.
         if (alliance == IsAlliance(race))
         {
             if (IsValidRaceClassCombination(race, cls, expansion))
