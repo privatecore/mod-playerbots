@@ -40,7 +40,7 @@ constexpr RandomPlayerbotFactory::NameRaceAndGender RandomPlayerbotFactory::Comb
             break;
     }
 
-    return static_cast<NameRaceAndGender>(static_cast<uint8>(baseIndex) + ((gender > 1) ? 0 : gender));
+    return static_cast<NameRaceAndGender>(static_cast<uint8>(baseIndex) + ((gender >= GENDER_NONE) ? GENDER_MALE : gender));
 }
 
 bool RandomPlayerbotFactory::IsValidRaceClassCombination(uint8 race, uint8 cls, uint32 expansion)
