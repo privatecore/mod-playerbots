@@ -61,17 +61,20 @@ Player* RandomPlayerbotFactory::CreateRandomBot(WorldSession* session, uint8 cls
 {
     LOG_DEBUG("playerbots", "Creating a new random bot for class: {}", cls);
 
-    const uint8 expansion = sWorld->getIntConfig(CONFIG_EXPANSION);
     const bool alliance = static_cast<bool>(urand(0, 1));
 
     std::vector<uint8> raceOptions;
     for (uint8 race = RACE_HUMAN; race < MAX_RACES; ++race)
     {
+        // skip disabled with config races
+        if ((1 << (race - 1)) & sWorld->getIntConfig(CONFIG_CHARACTER_CREATING_DISABLED_RACEMASK))
+            continue;
+
         // Try to get 50/50 faction distribution for random bot population balance.
         // Without this check, races from the faction with more class options would dominate.
         if (alliance == IsAlliance(race))
         {
-            if (IsValidRaceClassCombination(race, cls, expansion))
+            if (IsValidRaceClassCombination(race, cls, sWorld->getIntConfig(CONFIG_EXPANSION)))
                 raceOptions.push_back(race);
         }
     }
@@ -707,29 +710,24 @@ void RandomPlayerbotFactory::CreateRandomBots()
             if (!((1 << (cls - 1)) & CLASSMASK_ALL_PLAYABLE) || !sChrClassesStore.LookupEntry(cls))
                 continue;
 
-            if (bool const isClassDeathKnight = cls == CLASS_DEATH_KNIGHT;
-                isClassDeathKnight && sWorld->getIntConfig(CONFIG_EXPANSION) != EXPANSION_WRATH_OF_THE_LICH_KING)
+            // skip disabled with config classes
+            if ((1 << (cls - 1)) & sWorld->getIntConfig(CONFIG_CHARACTER_CREATING_DISABLED_CLASSMASK))
+                continue;
+
+            Player* playerBot = factory.CreateRandomBot(session, cls, nameCache);
+            if (!playerBot)
             {
+                LOG_ERROR("playerbots", "Fail to create character for account {}", accountId);
                 continue;
             }
 
-            if (cls != 10)
-            {
-                if (Player* playerBot = factory.CreateRandomBot(session, cls, nameCache))
-                {
-                    playerBot->SaveToDB(true, false);
-                    sCharacterCache->AddCharacterCacheEntry(playerBot->GetGUID(), accountId, playerBot->GetName(),
-                                                            playerBot->getGender(), playerBot->getRace(),
-                                                            playerBot->getClass(), playerBot->GetLevel());
-                    playerBot->CleanupsBeforeDelete();
-                    delete playerBot;
-                    bot_creation++;
-                }
-                else
-                {
-                    LOG_ERROR("playerbots", "Fail to create character for account {}", accountId);
-                }
-            }
+            playerBot->SaveToDB(true, false);
+            sCharacterCache->AddCharacterCacheEntry(playerBot->GetGUID(), accountId, playerBot->GetName(),
+                                                    playerBot->getGender(), playerBot->getRace(),
+                                                    playerBot->getClass(), playerBot->GetLevel());
+            playerBot->CleanupsBeforeDelete();
+            delete playerBot;
+            bot_creation++;
         }
     }
 
