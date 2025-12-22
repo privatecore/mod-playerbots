@@ -1159,7 +1159,26 @@ void PlayerbotAI::HandleBotOutgoingPacket(WorldPacket const& packet)
 
             return;
         }
-        case SMSG_MOVE_KNOCK_BACK:  // handle knockbacks
+        case SMSG_FORCE_MOVE_ROOT:      // CMSG_FORCE_MOVE_ROOT_ACK
+        case SMSG_FORCE_MOVE_UNROOT:    // CMSG_FORCE_MOVE_UNROOT_ACK
+        {
+            // Quick fix for CMSG_FORCE_MOVE_ROOT_ACK and CMSG_FORCE_MOVE_UNROOT_ACK:
+            // this should resolve issues with MOVEMENTFLAG_ROOT being permanently set
+            // when rooted during lost client control (charm + root effects)
+            // @see https://github.com/azerothcore/azerothcore-wotlk/pull/23147
+            bool forceRoot = (packet.GetOpcode() == SMSG_FORCE_MOVE_ROOT);
+            if (forceRoot)
+            {
+                bot->m_movementInfo.RemoveMovementFlag(MOVEMENTFLAG_MASK_MOVING_FLY);
+                bot->m_movementInfo.AddMovementFlag(MOVEMENTFLAG_ROOT);
+                bot->StopMoving();
+            }
+            else
+                bot->m_movementInfo.RemoveMovementFlag(MOVEMENTFLAG_ROOT);
+
+            return;
+        }
+        case SMSG_MOVE_KNOCK_BACK:      // CMSG_MOVE_KNOCK_BACK_ACK
         {
             WorldPacket p(packet);
             p.rpos(0);
