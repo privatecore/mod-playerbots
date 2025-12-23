@@ -1350,10 +1350,6 @@ void PlayerbotAI::DoNextAction(bool min)
     bool isBotAlive = bot->IsAlive();
     if (currentEngine != engines[BOT_STATE_DEAD] && !isBotAlive)
     {
-        bot->StopMoving();
-        bot->GetMotionMaster()->Clear();
-        bot->GetMotionMaster()->MoveIdle();
-
         // Death Count to prevent skeleton piles
         // Player* master = GetMaster();  // warning here - whipowill
         if (!HasActivePlayerMaster() && !bot->InBattleground())
@@ -1374,6 +1370,8 @@ void PlayerbotAI::DoNextAction(bool min)
     // Change engine if just ressed
     if (currentEngine == engines[BOT_STATE_DEAD] && isBotAlive)
     {
+        bot->SendMovementFlagUpdate();
+
         ChangeEngine(BOT_STATE_NON_COMBAT);
         return;
     }
