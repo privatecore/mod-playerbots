@@ -9,7 +9,8 @@
 
 uint32 MaxGearRepairCostValue::Calculate()
 {
-    uint32 TotalCost = 0;
+    uint32 totalCost = 0;
+
     for (int i = EQUIPMENT_SLOT_START; i < INVENTORY_SLOT_ITEM_END; ++i)
     {
         uint16 pos = ((INVENTORY_SLOT_BAG_0 << 8) | i);
@@ -43,15 +44,16 @@ uint32 MaxGearRepairCostValue::Calculate()
 
         uint32 costs = uint32(maxDurability * dmultiplier * double(dQualitymodEntry->quality_mod));
 
-        TotalCost += costs;
+        totalCost += costs;
     }
 
-    return TotalCost;
+    return totalCost;
 }
 
 uint32 RepairCostValue::Calculate()
 {
-    uint32 TotalCost = 0;
+    uint32 totalCost = 0;
+
     for (int i = EQUIPMENT_SLOT_START; i < INVENTORY_SLOT_ITEM_END; ++i)
     {
         uint16 pos = ((INVENTORY_SLOT_BAG_0 << 8) | i);
@@ -86,15 +88,15 @@ uint32 RepairCostValue::Calculate()
             dcost->multiplier[ItemSubClassToDurabilityMultiplierId(ditemProto->Class, ditemProto->SubClass)];
         uint32 costs = uint32(LostDurability * dmultiplier * double(dQualitymodEntry->quality_mod));
 
-        TotalCost += costs;
+        totalCost += costs;
     }
 
-    return TotalCost;
+    return totalCost;
 }
 
 uint32 TrainCostValue::Calculate()
 {
-    uint32 TotalCost = 0;
+    uint32 totalCost = 0;
 
     std::set<uint32> spells;
 
@@ -103,7 +105,6 @@ uint32 TrainCostValue::Calculate()
         for (CreatureTemplateContainer::const_iterator itr = creatures->begin(); itr != creatures->end(); ++itr)
         {
             Trainer::Trainer* trainer = sObjectMgr->GetTrainer(itr->first);
-
             if (!trainer)
                 continue;
 
@@ -112,19 +113,23 @@ uint32 TrainCostValue::Calculate()
 
             for (auto& spell : trainer->GetSpells())
             {
-                if (!trainer->CanTeachSpell(bot, trainer->GetSpell(spell.SpellId)))
+                Trainer::Spell const* trainerSpell = trainer->GetSpell(spell.SpellId);
+                if (!trainerSpell)
                     continue;
 
-                if (spells.find(spell.SpellId) != spells.end())
+                if (!trainer->CanTeachSpell(bot, trainerSpell))
                     continue;
 
-                TotalCost += spell.MoneyCost;
-                spells.insert(spell.SpellId);
+                if (spells.find(trainerSpell->SpellId) != spells.end())
+                    continue;
+
+                totalCost += trainerSpell->MoneyCost;
+                spells.insert(trainerSpell->SpellId);
             }
         }
     }
 
-    return TotalCost;
+    return totalCost;
 }
 
 uint32 MoneyNeededForValue::Calculate()
