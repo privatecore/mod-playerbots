@@ -2821,35 +2821,10 @@ inline bool IsCraftedBy(ItemTemplate const* proto, uint32 spellId)
 
 inline bool ContainsInternal(ItemTemplate const* proto, uint32 skillId)
 {
-    for (uint32 j = 0; j < sSkillLineAbilityStore.GetNumRows(); ++j)
+    for (SkillLineAbilityEntry const* skillLine : GetSkillLineAbilitiesBySkillLine(skillId))
     {
-        SkillLineAbilityEntry const* skillLine = sSkillLineAbilityStore.LookupEntry(j);
-        if (!skillLine || skillLine->ID != skillId)
-            continue;
-
         if (IsCraftedBy(proto, skillLine->Spell))
             return true;
-    }
-
-    CreatureTemplateContainer const* creatures = sObjectMgr->GetCreatureTemplates();
-    for (CreatureTemplateContainer::const_iterator itr = creatures->begin(); itr != creatures->end(); ++itr)
-    {
-        Trainer::Trainer* trainer = sObjectMgr->GetTrainer(itr->first);
-
-        if (!trainer)
-            continue;
-
-        if (trainer->GetTrainerType() != Trainer::Type::Tradeskill)
-            continue;
-
-        for (auto& spell : trainer->GetSpells())
-        {
-            if (spell.ReqSkillLine != skillId)
-                continue;
-
-            if (IsCraftedBy(proto, spell.SpellId))
-                return true;
-        }
     }
 
     std::vector<ItemTemplate*> const* itemTemplates = sObjectMgr->GetItemTemplateStoreFast();
@@ -2858,23 +2833,32 @@ inline bool ContainsInternal(ItemTemplate const* proto, uint32 skillId)
         if (!recipe)
             continue;
 
-        if (recipe->Class == ITEM_CLASS_RECIPE &&
-            ((recipe->SubClass == ITEM_SUBCLASS_LEATHERWORKING_PATTERN && skillId == SKILL_LEATHERWORKING) ||
-             (recipe->SubClass == ITEM_SUBCLASS_TAILORING_PATTERN && skillId == SKILL_TAILORING) ||
-             (recipe->SubClass == ITEM_SUBCLASS_ENGINEERING_SCHEMATIC && skillId == SKILL_ENGINEERING) ||
-             (recipe->SubClass == ITEM_SUBCLASS_BLACKSMITHING && skillId == SKILL_BLACKSMITHING) ||
-             (recipe->SubClass == ITEM_SUBCLASS_COOKING_RECIPE && skillId == SKILL_COOKING) ||
-             (recipe->SubClass == ITEM_SUBCLASS_ALCHEMY_RECIPE && skillId == SKILL_ALCHEMY) ||
-             (recipe->SubClass == ITEM_SUBCLASS_FIRST_AID_MANUAL && skillId == SKILL_FIRST_AID) ||
-             (recipe->SubClass == ITEM_SUBCLASS_ENCHANTING_FORMULA && skillId == SKILL_ENCHANTING) ||
-             (recipe->SubClass == ITEM_SUBCLASS_JEWELCRAFTING_RECIPE && skillId == SKILL_JEWELCRAFTING) ||
-             (recipe->SubClass == ITEM_SUBCLASS_FISHING_MANUAL && skillId == SKILL_FISHING)))
+        if (recipe->Class != ITEM_CLASS_RECIPE)
+            continue;
+
+        uint32 skillType = 0;
+        switch (recipe->SubClass)
         {
-            for (uint32 i = 0; i < MAX_ITEM_PROTO_SPELLS; ++i)
-            {
-                if (IsCraftedBy(proto, recipe->Spells[i].SpellId))
-                    return true;
-            }
+            case ITEM_SUBCLASS_LEATHERWORKING_PATTERN: skillType = SKILL_LEATHERWORKING; break;
+            case ITEM_SUBCLASS_TAILORING_PATTERN:      skillType = SKILL_TAILORING; break;
+            case ITEM_SUBCLASS_ENGINEERING_SCHEMATIC:  skillType = SKILL_ENGINEERING; break;
+            case ITEM_SUBCLASS_BLACKSMITHING:          skillType = SKILL_BLACKSMITHING; break;
+            case ITEM_SUBCLASS_COOKING_RECIPE:         skillType = SKILL_COOKING; break;
+            case ITEM_SUBCLASS_ALCHEMY_RECIPE:         skillType = SKILL_ALCHEMY; break;
+            case ITEM_SUBCLASS_FIRST_AID_MANUAL:       skillType = SKILL_FIRST_AID; break;
+            case ITEM_SUBCLASS_ENCHANTING_FORMULA:     skillType = SKILL_ENCHANTING; break;
+            case ITEM_SUBCLASS_JEWELCRAFTING_RECIPE:   skillType = SKILL_JEWELCRAFTING; break;
+            case ITEM_SUBCLASS_FISHING_MANUAL:         skillType = SKILL_FISHING; break;
+            default: break;
+        }
+
+        if (!skillType)
+            continue;
+
+        for (uint32 i = 0; i < MAX_ITEM_PROTO_SPELLS; ++i)
+        {
+            if (IsCraftedBy(proto, recipe->Spells[i].SpellId))
+                return true;
         }
     }
 
@@ -2892,14 +2876,13 @@ bool RandomItemMgr::IsUsedBySkill(ItemTemplate const* proto, uint32 skillId)
         case ITEM_CLASS_MISC:
         case ITEM_CLASS_REAGENT:
         case ITEM_CLASS_GEM:
+            if (ContainsInternal(proto, skillId))
+            {
+                itemCache.insert(proto->ItemId);
+                return true;
+            }
             break;
-        default:
-            return false;
     }
 
-    bool contains = ContainsInternal(proto, skillId);
-    if (contains)
-        itemCache.insert(proto->ItemId);
-
-    return contains;
+    return false;
 }
