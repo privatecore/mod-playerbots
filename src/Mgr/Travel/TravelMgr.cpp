@@ -926,7 +926,7 @@ GameObject* GuidPosition::GetGameObject()
         return nullptr;
 
     if (loadedFromDB)
-        return ObjectAccessor::GetSpawnedGameObjectByDBGUID(getMapId(), GetCounter());
+        return ObjectAccessor::GetSpawnedGameObjectByDBGUID(GetMapId(), GetCounter());
 
     return getMap()->GetGameObject(*this); // fallback
 }
@@ -972,7 +972,7 @@ bool GuidPosition::HasNpcFlag(NPCFlags flag) { return IsCreature() && GetCreatur
 bool GuidPosition::IsCreatureOrGOAccessible()
 {
     Map* map = getMap();
-    if (!map || !map->IsGridLoaded(getX(), getY()))
+    if (!map || !map->IsGridLoaded(GetPositionX(), GetPositionY()))
         return false;
 
     if (IsCreature())
