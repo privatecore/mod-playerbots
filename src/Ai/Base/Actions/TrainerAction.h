@@ -20,9 +20,9 @@ public:
     TrainerAction(PlayerbotAI* botAI) : Action(botAI, "trainer") {}
 
     bool Execute(Event event) override;
-    virtual bool isPossible() override;
-    virtual bool isUseful() override;
-    virtual Unit* GetTarget() override;
+    bool isPossible() override;
+    bool isUseful() override;
+    Unit* GetTarget() override;
 
 private:
     void Iterate(Creature* creature, bool learnSpells, uint32 spellId);
