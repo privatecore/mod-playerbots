@@ -170,7 +170,7 @@ bool RpgTrainTrigger::IsActive()
     if (!gp.HasNpcFlag(UNIT_NPC_FLAG_TRAINER))
         return false;
 
-    if (!AI_VALUE2(uint32, "free money for", (uint32)NeedMoneyFor::spells))
+    if (!AI_VALUE(bool, "can train"))
         return false;
 
     return true;
