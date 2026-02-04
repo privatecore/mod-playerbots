@@ -353,7 +353,7 @@ public:
     bool syncQuestWithPlayer;
     bool syncQuestForPlayer;
     bool dropObsoleteQuests;
-    std::string autoTrainSpells;
+    bool allowLearnTrainerSpells;
     bool autoPickTalents;
     bool autoUpgradeEquip;
     int32 hunterWolfPet;
