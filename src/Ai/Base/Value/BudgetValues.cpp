@@ -98,34 +98,35 @@ uint32 TrainCostValue::Calculate()
 {
     uint32 totalCost = 0;
 
-    std::set<uint32> spells;
+    std::unordered_set<uint32> spells;
 
-    if (CreatureTemplateContainer const* creatures = sObjectMgr->GetCreatureTemplates())
+    CreatureTemplateContainer const* ctc = sObjectMgr->GetCreatureTemplates();
+    for (CreatureTemplateContainer::const_iterator itr = ctc->begin(); itr != ctc->end(); ++itr)
     {
-        for (CreatureTemplateContainer::const_iterator itr = creatures->begin(); itr != creatures->end(); ++itr)
+        if (!(itr->second.npcflag & UNIT_NPC_FLAG_TRAINER))
+            continue;
+
+        Trainer::Trainer* trainer = sObjectMgr->GetTrainer(itr->first);
+        if (!trainer)
+            continue;
+
+        if (trainer->GetTrainerType() != Trainer::Type::Class || !trainer->IsTrainerValidForPlayer(bot))
+            continue;
+
+        for (auto& spell : trainer->GetSpells())
         {
-            Trainer::Trainer* trainer = sObjectMgr->GetTrainer(itr->first);
-            if (!trainer)
+            Trainer::Spell const* trainerSpell = trainer->GetSpell(spell.SpellId);
+            if (!trainerSpell)
                 continue;
 
-            if (trainer->GetTrainerType() != Trainer::Type::Class || !trainer->IsTrainerValidForPlayer(bot))
+            if (!trainer->CanTeachSpell(bot, trainerSpell))
                 continue;
 
-            for (auto& spell : trainer->GetSpells())
-            {
-                Trainer::Spell const* trainerSpell = trainer->GetSpell(spell.SpellId);
-                if (!trainerSpell)
-                    continue;
+            if (spells.find(trainerSpell->SpellId) != spells.end())
+                continue;
 
-                if (!trainer->CanTeachSpell(bot, trainerSpell))
-                    continue;
-
-                if (spells.find(trainerSpell->SpellId) != spells.end())
-                    continue;
-
-                totalCost += trainerSpell->MoneyCost;
-                spells.insert(trainerSpell->SpellId);
-            }
+            totalCost += trainerSpell->MoneyCost;
+            spells.insert(trainerSpell->SpellId);
         }
     }
 
