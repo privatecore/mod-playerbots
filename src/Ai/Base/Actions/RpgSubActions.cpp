@@ -264,21 +264,10 @@ bool RpgTrainAction::isUseful()
     if (!creature)
         return false;
 
-    Trainer::Trainer* trainer = sObjectMgr->GetTrainer(creature->GetEntry());
-    if (!trainer)
+    if (!creature || !creature->IsInWorld() || !creature->IsAlive())
         return false;
 
-    if (trainer->GetTrainerType() == Trainer::Type::Mount && trainer->GetTrainerRequirement() != bot->getRace())
-    {
-        // bot should be exalted with mount trainers' faction!
-        if (FactionTemplateEntry const* factionTemplate = creature->GetFactionTemplateEntry())
-            if (bot->GetReputationRank(factionTemplate->faction) == REP_EXALTED)
-                return true;
-
-        return false;
-    }
-
-    return trainer->IsTrainerValidForPlayer(bot);
+    return true;
 }
 
 bool RpgTrainAction::isPossible()
@@ -289,6 +278,9 @@ bool RpgTrainAction::isPossible()
 
     Trainer::Trainer* trainer = sObjectMgr->GetTrainer(creature->GetEntry());
     if (!trainer)
+        return false;
+
+    if (!trainer->IsTrainerValidForPlayer(bot))
         return false;
 
     uint32 currentGold = AI_VALUE2(uint32, "free money for", (uint32)NeedMoneyFor::spells);
