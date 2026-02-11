@@ -264,7 +264,7 @@ bool RpgTrainAction::isUseful()
     if (!creature)
         return false;
 
-    if (!creature || !creature->IsInWorld() || !creature->IsAlive())
+    if (!creature->IsInWorld() || creature->IsDuringRemoveFromWorld() || !creature->IsAlive())
         return false;
 
     return true;
@@ -272,19 +272,22 @@ bool RpgTrainAction::isUseful()
 
 bool RpgTrainAction::isPossible()
 {
-    Creature* creature = rpg->guidP().GetCreature();
-    if (!creature)
+    GuidPosition gp = rpg->guidP();
+
+    CreatureTemplate const* cinfo = gp.GetCreatureTemplate();
+    if (!cinfo)
         return false;
 
-    Trainer::Trainer* trainer = sObjectMgr->GetTrainer(creature->GetEntry());
+    Trainer::Trainer* trainer = sObjectMgr->GetTrainer(cinfo->Entry);
     if (!trainer)
         return false;
 
     if (!trainer->IsTrainerValidForPlayer(bot))
         return false;
 
+    FactionTemplateEntry const* factionTemplate = sFactionTemplateStore.LookupEntry(cinfo->faction);
+    float reputationDiscount = bot->GetReputationPriceDiscount(factionTemplate);
     uint32 currentGold = AI_VALUE2(uint32, "free money for", (uint32)NeedMoneyFor::spells);
-    float reputationDiscount = bot->GetReputationPriceDiscount(creature);
 
     for (auto& spell : trainer->GetSpells())
     {
