@@ -15,7 +15,7 @@ bool TrainerAction::Execute(Event event)
 {
     std::string const param = event.getParam();
 
-    Creature* target = GetTarget()->ToCreature();
+    Creature* target = GetCreatureTarget();
     if (!target)
         return false;
 
@@ -40,8 +40,11 @@ bool TrainerAction::Execute(Event event)
 
 bool TrainerAction::isUseful()
 {
-    Creature* target = GetTarget()->ToCreature();
-    if (!target || !target->IsInWorld() || !target->IsAlive())
+    Creature* target = GetCreatureTarget();
+    if (!target)
+        return false;
+
+    if (!target->IsInWorld() || target->IsDuringRemoveFromWorld() || !target->IsAlive())
         return false;
 
     return target->IsTrainer();
@@ -49,7 +52,7 @@ bool TrainerAction::isUseful()
 
 bool TrainerAction::isPossible()
 {
-    Creature* target = GetTarget()->ToCreature();
+    Creature* target = GetCreatureTarget();
     if (!target)
         return false;
 
@@ -79,6 +82,12 @@ Unit* TrainerAction::GetTarget()
         return master->GetSelectedUnit();
 
     return bot->GetSelectedUnit();
+}
+
+Creature* TrainerAction::GetCreatureTarget()
+{
+    Unit* target = GetTarget();
+    return target ? target->ToCreature() : nullptr;
 }
 
 void TrainerAction::Iterate(Creature* creature, bool learnSpells, uint32 spellId)

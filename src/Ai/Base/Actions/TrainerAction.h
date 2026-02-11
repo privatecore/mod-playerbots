@@ -20,11 +20,12 @@ public:
     TrainerAction(PlayerbotAI* botAI) : Action(botAI, "trainer") {}
 
     bool Execute(Event event) override;
-    bool isPossible() override;
     bool isUseful() override;
+    bool isPossible() override;
     Unit* GetTarget() override;
 
 private:
+    Creature* GetCreatureTarget();
     void Iterate(Creature* creature, bool learnSpells, uint32 spellId);
     void Learn(SpellInfo const* spellInfo, uint32 cost, std::ostringstream& out);
     void TellHeader(Creature* creature);
