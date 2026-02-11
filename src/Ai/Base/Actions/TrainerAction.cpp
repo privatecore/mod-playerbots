@@ -64,11 +64,7 @@ bool TrainerAction::isPossible()
         return false;
 
     if (trainer->GetSpells().empty())
-    {
-        // Not sure why we need to say anything, especially w/o master
-        botAI->TellError("No spells can be learned from this trainer");
         return false;
-    }
 
     return true;
 }
