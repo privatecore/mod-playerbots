@@ -6,7 +6,6 @@
 #include "ShamanActions.h"
 #include "TotemsShamanStrategy.h"
 #include "Playerbots.h"
-#include "Totem.h"
 #include "PlayerbotAI.h"
 #include "Action.h"
 
@@ -58,7 +57,8 @@ bool CastLavaBurstAction::isUseful()
     if (!target)
         return false;
 
-    static const uint32 FLAME_SHOCK_SPELL_IDS[] = {8050, 8052, 8053, 10447, 10448, 29228, 25457, 49232, 49233};
+    static const uint32 FLAME_SHOCK_SPELL_IDS[] =
+        {8050, 8052, 8053, 10447, 10448, 29228, 25457, 49232, 49233};
 
     ObjectGuid botGuid = bot->GetGUID();
     for (uint32 spellId : FLAME_SHOCK_SPELL_IDS)
@@ -66,34 +66,33 @@ bool CastLavaBurstAction::isUseful()
         if (target->HasAura(spellId, botGuid))
             return true;
     }
+
     return false;
 }
 
 // Logic for making a guardian (spirit wolf) use a spell (spirit walk)
 // There is no existing code for guardians casting spells in the AC/Playerbots repo.
-bool CastSpiritWalkAction::Execute(Event event)
+bool CastSpiritWalkAction::Execute(Event /*event*/)
 {
     constexpr uint32 SPIRIT_WOLF = 29264;
     constexpr uint32 SPIRIT_WALK_SPELL = 58875;
 
     for (Unit* unit : bot->m_Controlled)
     {
-        if (unit->GetEntry() == SPIRIT_WOLF)
+        if (unit->GetEntry() == SPIRIT_WOLF && unit->HasSpell(SPIRIT_WALK_SPELL))
         {
-            if (unit->HasSpell(SPIRIT_WALK_SPELL))
-            {
-                unit->CastSpell(unit, SPIRIT_WALK_SPELL, false);
-                return true;
-            }
+            unit->CastSpell(unit, SPIRIT_WALK_SPELL, false);
+            return true;
         }
     }
+
     return false;
 }
 
 // Set Strategy Assigned Totems (Actions) - First, it checks
 // the highest-rank spell the bot knows for each totem type,
 // then adds it to the Call of the Elements bar.
-bool SetTotemAction::Execute(Event event)
+bool SetTotemAction::Execute(Event /*event*/)
 {
     uint32 totemSpell = 0;
     for (size_t i = 0; i < totemSpellIdsCount; ++i)
@@ -106,16 +105,13 @@ bool SetTotemAction::Execute(Event event)
     }
 
     if (!totemSpell)
+        return false;
+
+    if (const ActionButton* button = bot->GetActionButton(actionButtonId);
+        button && button->GetType() == ACTION_BUTTON_SPELL &&
+        button->GetAction() == totemSpell)
     {
         return false;
-    }
-
-    if (const ActionButton* button = bot->GetActionButton(actionButtonId))
-    {
-        if (button->GetType() == ACTION_BUTTON_SPELL && button->GetAction() == totemSpell)
-        {
-            return false;
-        }
     }
 
     bot->addActionButton(actionButtonId, totemSpell, ACTION_BUTTON_SPELL);

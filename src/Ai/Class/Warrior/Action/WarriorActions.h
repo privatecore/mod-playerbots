@@ -25,8 +25,7 @@ MELEE_ACTION_U(CastBattleShoutTauntAction, "battle shout", CastSpellAction::isUs
 class CastDemoralizingShoutAction : public CastMeleeDebuffSpellAction
 {
 public:
-    CastDemoralizingShoutAction(PlayerbotAI* botAI)
-        : CastMeleeDebuffSpellAction(botAI, "demoralizing shout") {}
+    CastDemoralizingShoutAction(PlayerbotAI* botAI) : CastMeleeDebuffSpellAction(botAI, "demoralizing shout") {}
 };
 
 class CastDemoralizingShoutWithoutLifeTimeCheckAction : public CastMeleeDebuffSpellAction
@@ -79,7 +78,15 @@ REACH_ACTION(CastInterceptAction, "intercept", 8.0f);
 ENEMY_HEALER_ACTION(CastInterceptOnEnemyHealerAction, "intercept");
 SNARE_ACTION(CastInterceptOnSnareTargetAction, "intercept");
 MELEE_ACTION(CastSlamAction, "slam");
-BUFF_ACTION(CastBerserkerRageAction, "berserker rage");
+class CastBerserkerRageAction : public CastSpellAction
+{
+public:
+    CastBerserkerRageAction(PlayerbotAI* botAI) : CastSpellAction(botAI, "berserker rage") {}
+
+    std::string const GetTargetName() override { return "self target"; }
+    bool isPossible() override;
+    bool isUseful() override;
+};
 MELEE_ACTION(CastWhirlwindAction, "whirlwind");
 MELEE_ACTION(CastPummelAction, "pummel");
 ENEMY_HEALER_ACTION(CastPummelOnEnemyHealerAction, "pummel");
@@ -140,8 +147,8 @@ class CastVigilanceAction : public BuffOnPartyAction
 public:
     CastVigilanceAction(PlayerbotAI* botAI) : BuffOnPartyAction(botAI, "vigilance") {}
 
-    Unit* GetTarget() override;
     bool Execute(Event event) override;
+    Unit* GetTarget() override;
 };
 
 class CastRetaliationAction : public CastBuffSpellAction
@@ -157,10 +164,10 @@ class CastShatteringThrowAction : public CastSpellAction
 public:
     CastShatteringThrowAction(PlayerbotAI* botAI) : CastSpellAction(botAI, "shattering throw") {}
 
-    Unit* GetTarget() override;
+    bool Execute(Event event) override;
     bool isUseful() override;
     bool isPossible() override;
-    bool Execute(Event event) override;
+    Unit* GetTarget() override;
 };
 
 #endif

@@ -23,16 +23,26 @@ std::vector<NextAction> CastAbolishPoisonOnPartyAction::getAlternatives()
                              CastSpellAction::getPrerequisites());
 }
 
+bool CastLifebloomOnMainTankAction::isUseful()
+{
+    Unit* target = GetTarget();
+    if (!target || !target->IsAlive() || !CastSpellAction::isUseful())
+        return false;
+
+    Aura* lifebloom = botAI->GetAura("lifebloom", target, true, true);
+    return !lifebloom || lifebloom->GetStackAmount() < 3 || lifebloom->GetDuration() < 2000;
+}
+
 Value<Unit*>* CastEntanglingRootsCcAction::GetTargetValue()
 {
     return context->GetValue<Unit*>("cc target", "entangling roots");
 }
 
-bool CastEntanglingRootsCcAction::Execute(Event event) { return botAI->CastSpell("entangling roots", GetTarget()); }
+bool CastEntanglingRootsCcAction::Execute(Event /*event*/) { return botAI->CastSpell("entangling roots", GetTarget()); }
 
 Value<Unit*>* CastHibernateCcAction::GetTargetValue() { return context->GetValue<Unit*>("cc target", "hibernate"); }
 
-bool CastHibernateCcAction::Execute(Event event) { return botAI->CastSpell("hibernate", GetTarget()); }
+bool CastHibernateCcAction::Execute(Event /*event*/) { return botAI->CastSpell("hibernate", GetTarget()); }
 bool CastStarfallAction::isUseful()
 {
     if (!CastSpellAction::isUseful())
