@@ -2756,79 +2756,61 @@ void RandomItemMgr::BuildRarityCache()
 
 float RandomItemMgr::GetItemRarity(uint32 itemId) { return rarityCache[itemId]; }
 
-inline bool IsCraftedBySpellInfo(ItemTemplate const* proto, SpellInfo const* spellInfo)
+inline bool IsCraftedBySpellInfo(uint32 itemId, SpellInfo const* spellInfo)
 {
     for (uint32 x = 0; x < MAX_SPELL_REAGENTS; ++x)
     {
         if (spellInfo->Reagent[x] <= 0)
-        {
             continue;
-        }
 
-        if (proto->ItemId == spellInfo->Reagent[x])
+        if (itemId == static_cast<uint32>(spellInfo->Reagent[x]))
             return true;
-
     }
 
-    for (uint8 i = 0; i < 3; ++i)
+    for (uint8 i = 0; i < MAX_SPELL_EFFECTS; ++i)
     {
-        if (spellInfo->Effects[i].Effect == SPELL_EFFECT_CREATE_ITEM)
-        {
-            if (spellInfo->Effects[i].ItemType == proto->ItemId)
-                return true;
-        }
+        if (spellInfo->Effects[i].Effect == SPELL_EFFECT_CREATE_ITEM &&
+            spellInfo->Effects[i].ItemType == itemId)
+            return true;
     }
 
     return false;
 }
 
-inline bool IsCraftedBySpell(ItemTemplate const* proto, uint32 spellId)
+inline bool IsCraftedBySpell(uint32 itemId, uint32 spellId)
 {
     SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(spellId);
     if (!spellInfo)
         return false;
 
-    return IsCraftedBySpellInfo(proto, spellInfo);
-}
-
-inline bool IsCraftedBy(ItemTemplate const* proto, uint32 spellId)
-{
-    if (IsCraftedBySpell(proto, spellId))
+    if (IsCraftedBySpellInfo(itemId, spellInfo))
         return true;
 
-    SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(spellId);
-    if (!spellInfo)
-        return false;
-
-    for (uint32 effect = 0; effect < 3; ++effect)
+    for (uint8 i = 0; i < MAX_SPELL_EFFECTS; ++i)
     {
-        uint32 craftId = spellInfo->Effects[effect].TriggerSpell;
-        SpellInfo const* craftSpellInfo = sSpellMgr->GetSpellInfo(craftId);
-        if (!craftSpellInfo)
+        SpellInfo const* triggerSpellInfo = sSpellMgr->GetSpellInfo(spellInfo->Effects[i].TriggerSpell);
+        if (!triggerSpellInfo)
             continue;
 
-        if (IsCraftedBySpellInfo(proto, craftSpellInfo))
+        if (IsCraftedBySpellInfo(itemId, triggerSpellInfo))
             return true;
     }
 
     return false;
 }
 
-inline bool ContainsInternal(ItemTemplate const* proto, uint32 skillId)
+inline bool ContainsInternal(uint32 itemId, uint32 skillId)
 {
     for (SkillLineAbilityEntry const* skillLine : GetSkillLineAbilitiesBySkillLine(skillId))
     {
-        if (IsCraftedBy(proto, skillLine->Spell))
+        if (IsCraftedBySpell(itemId, skillLine->Spell))
             return true;
     }
 
     std::vector<ItemTemplate*> const* itemTemplates = sObjectMgr->GetItemTemplateStoreFast();
     for (ItemTemplate const* recipe : *itemTemplates)
     {
-        if (!recipe)
-            continue;
-
-        if (recipe->Class != ITEM_CLASS_RECIPE)
+        if (!recipe || recipe->Class != ITEM_CLASS_RECIPE)
             continue;
 
         uint32 skillType = 0;
@@ -2852,7 +2834,7 @@ inline bool ContainsInternal(ItemTemplate const* proto, uint32 skillId)
 
         for (uint32 i = 0; i < MAX_ITEM_PROTO_SPELLS; ++i)
         {
-            if (IsCraftedBy(proto, recipe->Spells[i].SpellId))
+            if (IsCraftedBySpell(itemId, recipe->Spells[i].SpellId))
                 return true;
         }
     }
@@ -2871,7 +2853,7 @@ bool RandomItemMgr::IsUsedBySkill(ItemTemplate const* proto, uint32 skillId)
         case ITEM_CLASS_MISC:
         case ITEM_CLASS_REAGENT:
         case ITEM_CLASS_GEM:
-            if (ContainsInternal(proto, skillId))
+            if (ContainsInternal(proto->ItemId, skillId))
             {
                 itemCache.insert(proto->ItemId);
                 return true;
