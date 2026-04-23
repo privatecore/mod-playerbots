@@ -157,7 +157,7 @@ void RandomItemMgr::Init()
     // BuildEquipCache();
     BuildEquipCacheNew();
     BuildAmmoCache();
-    BuildFoodCache();
+    BuildCache_Food();
     BuildCache_Potion();
     BuildTradeCache();
 }
@@ -2330,7 +2330,57 @@ void RandomItemMgr::BuildAmmoCache()
     LOG_INFO("server.loading", "Cached {} ammo", counter);  // TEST
 }
 
-std::vector<uint32> RandomItemMgr::GetAmmo(uint32 level, uint32 subClass) { return ammoCache[level][subClass]; }
+void RandomItemMgr::BuildCache_Food()
+{
+    uint32 oldMSTime = getMSTime();
+
+    uint32 maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
+
+    LOG_INFO("server.loading", "Building food cache for {} levels...", maxLevel);
+
+    uint32 count = 0;
+    ItemTemplateContainer const* itemTemplates = sObjectMgr->GetItemTemplateStore();
+    for (auto const& itr : *itemTemplates)
+    {
+        ItemTemplate const* proto = &itr.second;
+        if (!proto)
+            continue;
+
+        if (proto->Class != ITEM_CLASS_CONSUMABLE ||
+            (proto->SubClass != ITEM_SUBCLASS_FOOD && proto->SubClass != ITEM_SUBCLASS_CONSUMABLE) ||
+            proto->Bonding != NO_BIND)
+            continue;
+
+        if (proto->Spells[0].SpellCategory != SPELL_CATEGORY_FOOD && proto->Spells[0].SpellCategory != SPELL_CATEGORY_DRINK)
+            continue;
+
+        if (proto->RequiredSkill)
+            continue;
+
+        if (proto->Area || proto->Map || proto->RequiredCityRank || proto->RequiredHonorRank)
+            continue;
+
+        if (proto->Duration & 0x80000000)
+            continue;
+
+        uint32 requiredLevel = proto->RequiredLevel;
+        if (requiredLevel > maxLevel)
+            continue;
+
+        uint32 category = proto->Spells[0].SpellCategory;
+        for (uint32 level = 1; level <= maxLevel + 1; level += 10)
+        {
+            if (requiredLevel && (requiredLevel > level || requiredLevel < level - 10))
+                continue;
+
+            foodCache[level / 10][category].push_back(itr.first);
+            ++count;
+        }
+    }
+
+    LOG_INFO("server.loading", ">> Cached total {} Food in {} ms", count, GetMSTimeDiffToNow(oldMSTime));
+    LOG_INFO("server.loading", " ");
+}
 
 void RandomItemMgr::BuildCache_Potion()
 {
@@ -2407,66 +2457,7 @@ void RandomItemMgr::BuildCache_Potion()
     LOG_INFO("server.loading", " ");
 }
 
-void RandomItemMgr::BuildFoodCache()
-{
-    uint32 maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
-    if (maxLevel > sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL))
-        maxLevel = sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL);
-
-    LOG_INFO("server.loading", "Building food cache for {} levels", maxLevel);
-
-    ItemTemplateContainer const* itemTemplates = sObjectMgr->GetItemTemplateStore();
-
-    uint32 counter = 0;
-    for (uint32 level = 1; level <= maxLevel + 1; level += 10)
-    {
-        uint32 categories[] = {11, 59};
-        for (int i = 0; i < 2; ++i)
-        {
-            uint32 category = categories[i];
-
-            for (auto const& itr : *itemTemplates)
-            {
-                ItemTemplate const* proto = &itr.second;
-                if (!proto)
-                    continue;
-
-                if (proto->Class != ITEM_CLASS_CONSUMABLE ||
-                    (proto->SubClass != ITEM_SUBCLASS_FOOD && proto->SubClass != ITEM_SUBCLASS_CONSUMABLE) ||
-                    (proto->Spells[0].SpellCategory != category) || proto->Bonding != NO_BIND)
-                    continue;
-
-                if (proto->RequiredLevel && (proto->RequiredLevel > level || proto->RequiredLevel < level - 10))
-                    continue;
-
-                if (proto->RequiredSkill)
-                    continue;
-
-                if (proto->Area || proto->Map || proto->RequiredCityRank || proto->RequiredHonorRank)
-                    continue;
-
-                if (proto->Duration & 0x80000000)
-                    continue;
-
-                foodCache[level / 10][category].push_back(itr.first);
-            }
-        }
-    }
-
-    for (uint32 level = 1; level <= maxLevel + 1; level += 10)
-    {
-        uint32 categories[] = {11, 59};
-        for (uint8 i = 0; i < 2; ++i)
-        {
-            uint32 category = categories[i];
-            uint32 size = foodCache[level / 10][category].size();
-            ++counter;
-            LOG_DEBUG("server.loading", "Food cache for level={}, category={}: {} items", level, category, size);
-        }
-    }
-
-    LOG_INFO("server.loading", "Cached {} types of food", counter);
-}
+std::vector<uint32> RandomItemMgr::GetAmmo(uint32 level, uint32 subClass) { return ammoCache[level][subClass]; }
 
 uint32 RandomItemMgr::GetRandomPotion(uint32 level, uint32 effect)
 {
