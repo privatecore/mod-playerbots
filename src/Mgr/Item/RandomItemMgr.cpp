@@ -156,7 +156,7 @@ void RandomItemMgr::Init()
     BuildItemInfoCache();
     // BuildEquipCache();
     BuildEquipCacheNew();
-    BuildAmmoCache();
+    BuildCache_Ammo();
     BuildCache_Food();
     BuildCache_Potion();
     BuildTradeCache();
@@ -2299,35 +2299,76 @@ RandomItemList RandomItemMgr::Query(uint32 level, uint8 clazz, uint8 slot, uint3
     return items;
 }
 
-void RandomItemMgr::BuildAmmoCache()
+void RandomItemMgr::BuildCache_Ammo()
 {
-    uint32 maxLevel = sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL);
+    uint32 oldMSTime = getMSTime();
 
-    LOG_INFO("server.loading", "Building ammo cache for {} levels", maxLevel);
+    uint32 maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
 
-    uint32 counter = 0;
-    for (uint32 level = 1; level <= maxLevel; level += 1)
+    LOG_INFO("server.loading", "Building ammo cache for {} levels...", maxLevel);
+
+    struct AmmoEntry
     {
-        for (uint32 subClass = ITEM_SUBCLASS_ARROW; subClass <= ITEM_SUBCLASS_BULLET; subClass++)
+        uint32 entry;
+        uint32 subClass;
+        uint32 requiredLevel;
+        uint32 stackable;
+        uint32 itemLevel;
+    };
+
+    std::vector<AmmoEntry> ammoItems;
+
+    ItemTemplateContainer const* itemTemplates = sObjectMgr->GetItemTemplateStore();
+    for (auto const& itr : *itemTemplates)
+    {
+        ItemTemplate const* proto = &itr.second;
+        if (!proto)
+            continue;
+
+        if (proto->Class != ITEM_CLASS_PROJECTILE ||
+            (proto->SubClass != ITEM_SUBCLASS_ARROW && proto->SubClass != ITEM_SUBCLASS_BULLET))
+            continue;
+
+        if (proto->Flags & ITEM_FLAG_DEPRECATED)
+            continue;
+
+        if (proto->Duration)
+            continue;
+
+        if (proto->RequiredLevel == 0)
+            continue;
+
+        if (proto->Damage[0].DamageMin == 0.0f)
+            continue;
+
+        ammoItems.push_back({itr.first, proto->SubClass, proto->RequiredLevel,
+                            proto->GetMaxStackSize(), proto->ItemLevel});
+    }
+
+    // we want higher stack sizes first, then higher item levels, to ensure bots
+    // use the best available ammo for their current level
+    std::sort(ammoItems.begin(), ammoItems.end(), [](AmmoEntry const& a, AmmoEntry const& b)
+    {
+        if (a.stackable != b.stackable)
+            return a.stackable > b.stackable;
+        return a.itemLevel > b.itemLevel;
+    });
+
+    uint32 count = 0;
+    for (uint32 level = 1; level <= maxLevel; ++level)
+    {
+        for (AmmoEntry const& ammo : ammoItems)
         {
-            QueryResult results = WorldDatabase.Query(
-                "SELECT entry FROM item_template WHERE class = {} AND subclass = {} AND RequiredLevel <= {} AND duration = 0 "
-                "AND (Flags & 16) = 0 AND dmg_min1 != 0 AND RequiredLevel != 0  "
-                "ORDER BY stackable DESC, ItemLevel DESC",
-                ITEM_CLASS_PROJECTILE, subClass, level);
-            if (!results)
+            if (ammo.requiredLevel > level)
                 continue;
-            do
-            {
-                Field* fields = results->Fetch();
-                uint32 entry = fields[0].Get<uint32>();
-                ammoCache[level][subClass].push_back(entry);
-                ++counter;
-            } while (results->NextRow());
+
+            ammoCache[level][ammo.subClass].push_back(ammo.entry);
+            ++count;
         }
     }
 
-    LOG_INFO("server.loading", "Cached {} ammo", counter);  // TEST
+    LOG_INFO("server.loading", ">> Cached total {} Ammo in {} ms", count, GetMSTimeDiffToNow(oldMSTime));
+    LOG_INFO("server.loading", " ");
 }
 
 void RandomItemMgr::BuildCache_Food()

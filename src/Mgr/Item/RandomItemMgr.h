@@ -178,7 +178,7 @@ private:
     void BuildEquipCache();
     void BuildEquipCacheNew();
     void BuildItemInfoCache();
-    void BuildAmmoCache();
+    void BuildCache_Ammo();
     void BuildCache_Food();
     void BuildCache_Potion();
     void BuildTradeCache();
