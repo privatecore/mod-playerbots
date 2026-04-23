@@ -180,7 +180,7 @@ private:
     void BuildItemInfoCache();
     void BuildAmmoCache();
     void BuildFoodCache();
-    void BuildPotionCache();
+    void BuildCache_Potion();
     void BuildTradeCache();
     void BuildRarityCache();
     bool CanEquipItem(BotEquipKey key, ItemTemplate const* proto);

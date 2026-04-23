@@ -157,8 +157,8 @@ void RandomItemMgr::Init()
     // BuildEquipCache();
     BuildEquipCacheNew();
     BuildAmmoCache();
-    BuildPotionCache();
     BuildFoodCache();
+    BuildCache_Potion();
     BuildTradeCache();
 }
 
@@ -2332,83 +2332,79 @@ void RandomItemMgr::BuildAmmoCache()
 
 std::vector<uint32> RandomItemMgr::GetAmmo(uint32 level, uint32 subClass) { return ammoCache[level][subClass]; }
 
-void RandomItemMgr::BuildPotionCache()
+void RandomItemMgr::BuildCache_Potion()
 {
-    uint32 maxLevel = sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL);
+    uint32 oldMSTime = getMSTime();
 
-    LOG_INFO("playerbots", "Building potion cache for {} levels", maxLevel);
+    uint32 maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
 
+    LOG_INFO("server.loading", "Building potion cache for {} levels...", maxLevel);
+
+    uint32 count = 0;
     ItemTemplateContainer const* itemTemplates = sObjectMgr->GetItemTemplateStore();
-
-    uint32 counter = 0;
-    for (uint32 level = 1; level <= maxLevel; level++)
+    for (auto const& itr : *itemTemplates)
     {
-        uint32 effects[] = {SPELL_EFFECT_HEAL, SPELL_EFFECT_ENERGIZE};
-        for (uint8 i = 0; i < 2; ++i)
+        ItemTemplate const* proto = &itr.second;
+        if (!proto)
+            continue;
+
+        if (proto->Class != ITEM_CLASS_CONSUMABLE ||
+            (proto->SubClass != ITEM_SUBCLASS_POTION && proto->SubClass != ITEM_SUBCLASS_FLASK) ||
+            proto->Bonding != NO_BIND)
+            continue;
+
+        if (proto->RequiredSkill)
+            continue;
+
+        if (proto->Area || proto->Map || proto->RequiredCityRank || proto->RequiredHonorRank)
+            continue;
+
+        if (proto->Duration & 0x80000000)
+            continue;
+
+        if (proto->AllowableClass != 0xFFFFFFFF)
+            continue;
+
+        SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(proto->Spells[0].SpellId);
+        if (!spellInfo)
+            continue;
+
+        if (spellInfo->Effects[EFFECT_0].Effect != SPELL_EFFECT_HEAL &&
+            spellInfo->Effects[EFFECT_0].Effect != SPELL_EFFECT_ENERGIZE)
+            continue;
+
+        // do not accept potions/flasks with more than one spell effects, only
+        // first one effect (EFFECT_0) should be set and eq. heal/energize
+        bool hasOtherEffects = false;
+        for (uint8 i = EFFECT_1; i < MAX_SPELL_EFFECTS; ++i)
         {
-            uint32 effect = effects[i];
-
-            for (auto const& itr : *itemTemplates)
+            if (spellInfo->Effects[i].Effect != 0)
             {
-                ItemTemplate const* proto = &itr.second;
-                if (!proto)
-                    continue;
-
-                if (proto->Class != ITEM_CLASS_CONSUMABLE ||
-                    (proto->SubClass != ITEM_SUBCLASS_POTION && proto->SubClass != ITEM_SUBCLASS_FLASK) ||
-                    proto->Bonding != NO_BIND)
-                    continue;
-
-                uint32 requiredLevel = proto->RequiredLevel;
-                if (requiredLevel > level || (level > 13 && requiredLevel < level - 13))
-                    continue;
-
-                if (proto->RequiredSkill)
-                    continue;
-
-                if (proto->Area || proto->Map || proto->RequiredCityRank || proto->RequiredHonorRank)
-                    continue;
-
-                if (proto->Duration & 0x80000000)
-                    continue;
-
-                if (proto->AllowableClass != -1)
-                    continue;
-
-                bool hybrid = false;
-                SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(proto->Spells[0].SpellId);
-                if (!spellInfo)
-                    continue;
-                // do not accept hybrid potion
-                for (uint8 i = 1; i < 3; i++)
-                {
-                    if (spellInfo->Effects[i].Effect != 0)
-                    {
-                        hybrid = true;
-                        break;
-                    }
-                }
-                if (hybrid)
-                    continue;
-
-                if (spellInfo->Effects[0].Effect == effect)
-                    potionCache[level][effect].push_back(itr.first);
+                hasOtherEffects = true;
+                break;
             }
         }
-    }
 
-    for (uint32 level = 1; level <= maxLevel; level++)
-    {
-        uint32 effects[] = {SPELL_EFFECT_HEAL, SPELL_EFFECT_ENERGIZE};
-        for (uint8 i = 0; i < 2; ++i)
+        if (hasOtherEffects)
+            continue;
+
+        uint32 requiredLevel = proto->RequiredLevel;
+        if (requiredLevel > maxLevel)
+            continue;
+
+        uint32 effect = spellInfo->Effects[EFFECT_0].Effect;
+        for (uint32 level = std::max(1u, requiredLevel); level <= maxLevel; ++level)
         {
-            uint32 effect = effects[i];
-            uint32 size = potionCache[level][effect].size();
-            counter += size;
+            if (level > 13 && level - requiredLevel > 13)
+                break;
+
+            potionCache[level][effect].push_back(itr.first);
+            ++count;
         }
     }
 
-    LOG_INFO("playerbots", "Cached {} potions", counter);
+    LOG_INFO("server.loading", ">> Cached total {} Potions in {} ms", count, GetMSTimeDiffToNow(oldMSTime));
+    LOG_INFO("server.loading", " ");
 }
 
 void RandomItemMgr::BuildFoodCache()
