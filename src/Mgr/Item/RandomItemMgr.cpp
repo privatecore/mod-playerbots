@@ -394,30 +394,18 @@ void RandomItemMgr::AddItemStats(uint32 mod, uint8& sp, uint8& ap, uint8& tank)
     {
         case ITEM_MOD_HEALTH:
         case ITEM_MOD_STAMINA:
+            ++sp; ++ap; ++tank;  // universal stats - benefit all roles
+            break;
+        case ITEM_MOD_AGILITY:
+        case ITEM_MOD_STRENGTH:
+            ++ap; ++tank;        // physical stats - no spellpower benefit
+            break;
         case ITEM_MOD_MANA:
         case ITEM_MOD_INTELLECT:
         case ITEM_MOD_SPIRIT:
-            ++sp;
+            ++sp;                // caster-only stats
             break;
-    }
-
-    switch (mod)
-    {
-        case ITEM_MOD_AGILITY:
-        case ITEM_MOD_STRENGTH:
-        case ITEM_MOD_HEALTH:
-        case ITEM_MOD_STAMINA:
-            ++tank;
-            break;
-    }
-
-    switch (mod)
-    {
-        case ITEM_MOD_HEALTH:
-        case ITEM_MOD_STAMINA:
-        case ITEM_MOD_AGILITY:
-        case ITEM_MOD_STRENGTH:
-            ++ap;
+        default:
             break;
     }
 }
@@ -429,18 +417,25 @@ bool RandomItemMgr::CheckItemStats(uint8 clazz, uint8 sp, uint8 ap, uint8 tank)
         case CLASS_PRIEST:
         case CLASS_MAGE:
         case CLASS_WARLOCK:
+            // pure casters: must have sp, and sp must dominate
             if (!sp || ap > sp || tank > sp)
                 return false;
             break;
         case CLASS_PALADIN:
         case CLASS_WARRIOR:
+            // pure melee/tank: must have ap and tank, sp must not dominate
             if ((!ap && !tank) || sp > ap || sp > tank)
                 return false;
             break;
         case CLASS_HUNTER:
         case CLASS_ROGUE:
+            // physical DPS: must have ap, sp must not dominate
             if (!ap || sp > ap || sp > tank)
                 return false;
+            break;
+        default:
+            // CLASS_SHAMAN, CLASS_DRUID, CLASS_DEATH_KNIGHT - hybrid classes,
+            // accept any item that has at least one relevant stat
             break;
     }
 
