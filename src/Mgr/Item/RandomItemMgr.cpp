@@ -2528,11 +2528,11 @@ void RandomItemMgr::BuildCache_Potion()
 
 uint32 RandomItemMgr::GetRandomPotion(uint32 level, uint32 effect)
 {
-    const std::vector<uint32> &potions = potionCache[level][effect];
+    std::vector<uint32> const& potions = potionCache[level][effect];
     if (potions.empty())
         return 0;
 
-    return potions[urand(0, potions.size() - 1)];
+    return Acore::Containers::SelectRandomContainerElement(potions);
 }
 
 void RandomItemMgr::BuildCache_Trade()
@@ -2580,11 +2580,11 @@ void RandomItemMgr::BuildCache_Trade()
 
 uint32 RandomItemMgr::GetRandomTrade(uint32 level)
 {
-    std::vector<uint32> trade = tradeCache[(level - 1) / 10];
+    std::vector<uint32> const& trade = tradeCache[(level - 1) / 10];
     if (trade.empty())
         return 0;
 
-    return trade[urand(0, trade.size() - 1)];
+    return Acore::Containers::SelectRandomContainerElement(trade);
 }
 
 void RandomItemMgr::BuildRarityCache()
