@@ -174,15 +174,15 @@ public:
     std::vector<uint32> GetCachedEquipments(uint32 requiredLevel, uint32 inventoryType);
 
 private:
-    void BuildRandomItemCache();
-    void BuildEquipCache();
-    void BuildEquipCacheNew();
-    void BuildItemInfoCache();
-    void BuildCache_Ammo();
-    void BuildCache_Food();
-    void BuildCache_Potion();
-    void BuildCache_Trade();
-    void BuildRarityCache();
+    void BuildCacheRandomItem();
+    void BuildCacheEquip();
+    void BuildCacheEquipNew();
+    void BuildCacheItemInfo();
+    void BuildCacheAmmo();
+    void BuildCacheFood();
+    void BuildCachePotion();
+    void BuildCacheTrade();
+    void BuildCacheRarity();
     bool CanEquipItem(BotEquipKey key, ItemTemplate const* proto);
     bool CanEquipItemNew(ItemTemplate const* proto);
     void AddItemStats(uint32 mod, uint8& sp, uint8& ap, uint8& tank);

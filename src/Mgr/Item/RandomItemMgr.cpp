@@ -153,19 +153,19 @@ RandomItemMgr::RandomItemMgr()
 
 void RandomItemMgr::Init()
 {
-    BuildItemInfoCache();
-    // BuildEquipCache();
-    BuildEquipCacheNew();
-    BuildCache_Ammo();
-    BuildCache_Food();
-    BuildCache_Potion();
-    BuildCache_Trade();
+    BuildCacheItemInfo();
+    // BuildCacheEquip();
+    BuildCacheEquipNew();
+    BuildCacheAmmo();
+    BuildCacheFood();
+    BuildCachePotion();
+    BuildCacheTrade();
 }
 
 void RandomItemMgr::InitAfterAhBot()
 {
-    BuildRandomItemCache();
-    // BuildRarityCache();
+    BuildCacheRandomItem();
+    // BuildCacheRarity();
 }
 
 RandomItemMgr::~RandomItemMgr()
@@ -208,7 +208,7 @@ RandomItemList RandomItemMgr::Query(uint32 level, RandomItemType type, RandomIte
     return result;
 }
 
-void RandomItemMgr::BuildRandomItemCache()
+void RandomItemMgr::BuildCacheRandomItem()
 {
     if (PreparedQueryResult result =
             PlayerbotsDatabase.Query(PlayerbotsDatabase.GetPreparedStatement(PLAYERBOTS_SEL_RNDITEM_CACHE)))
@@ -813,7 +813,7 @@ bool RandomItemMgr::CanEquipWeapon(uint8 clazz, ItemTemplate const* proto)
     }
 }
 
-void RandomItemMgr::BuildItemInfoCache()
+void RandomItemMgr::BuildCacheItemInfo()
 {
     //uint32 maxLevel = sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL); //not used, line marked for removal.
 
@@ -2070,7 +2070,7 @@ uint32 RandomItemMgr::GetLiveStatWeight(Player* player, uint32 itemId)
     return statWeight;
 }
 
-void RandomItemMgr::BuildEquipCache()
+void RandomItemMgr::BuildCacheEquip()
 {
     uint32 maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
     if (maxLevel > sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL))
@@ -2178,7 +2178,7 @@ void RandomItemMgr::BuildEquipCache()
     }
 }
 
-void RandomItemMgr::BuildEquipCacheNew()
+void RandomItemMgr::BuildCacheEquipNew()
 {
     LOG_INFO("playerbots", "Loading equipments cache...");
 
@@ -2281,7 +2281,7 @@ RandomItemList RandomItemMgr::Query(uint32 level, uint8 clazz, uint8 slot, uint3
     return items;
 }
 
-void RandomItemMgr::BuildCache_Ammo()
+void RandomItemMgr::BuildCacheAmmo()
 {
     uint32 oldMSTime = getMSTime();
 
@@ -2355,7 +2355,7 @@ void RandomItemMgr::BuildCache_Ammo()
 
 std::vector<uint32> RandomItemMgr::GetAmmo(uint32 level, uint32 subClass) { return ammoCache[level][subClass]; }
 
-void RandomItemMgr::BuildCache_Food()
+void RandomItemMgr::BuildCacheFood()
 {
     uint32 oldMSTime = getMSTime();
 
@@ -2451,7 +2451,7 @@ uint32 RandomItemMgr::GetRandomFood(uint32 level, uint32 category)
     return Acore::Containers::SelectRandomContainerElement(food);
 }
 
-void RandomItemMgr::BuildCache_Potion()
+void RandomItemMgr::BuildCachePotion()
 {
     uint32 oldMSTime = getMSTime();
 
@@ -2535,7 +2535,7 @@ uint32 RandomItemMgr::GetRandomPotion(uint32 level, uint32 effect)
     return Acore::Containers::SelectRandomContainerElement(potions);
 }
 
-void RandomItemMgr::BuildCache_Trade()
+void RandomItemMgr::BuildCacheTrade()
 {
     uint32 oldMSTime = getMSTime();
 
@@ -2587,7 +2587,7 @@ uint32 RandomItemMgr::GetRandomTrade(uint32 level)
     return Acore::Containers::SelectRandomContainerElement(trade);
 }
 
-void RandomItemMgr::BuildRarityCache()
+void RandomItemMgr::BuildCacheRarity()
 {
     if (PreparedQueryResult result =
             PlayerbotsDatabase.Query(PlayerbotsDatabase.GetPreparedStatement(PLAYERBOTS_SEL_RARITY_CACHE)))
