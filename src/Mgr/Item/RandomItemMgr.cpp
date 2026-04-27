@@ -159,7 +159,7 @@ void RandomItemMgr::Init()
     BuildCache_Ammo();
     BuildCache_Food();
     BuildCache_Potion();
-    BuildTradeCache();
+    BuildCache_Trade();
 }
 
 void RandomItemMgr::InitAfterAhBot()
@@ -2554,49 +2554,47 @@ uint32 RandomItemMgr::GetRandomFood(uint32 level, uint32 category)
     return food[urand(0, food.size() - 1)];
 }
 
-void RandomItemMgr::BuildTradeCache()
+void RandomItemMgr::BuildCache_Trade()
 {
+    uint32 oldMSTime = getMSTime();
+
     uint32 maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
-    if (maxLevel > sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL))
-        maxLevel = sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL);
 
-    LOG_INFO("server.loading", "Building trade cache for {} levels", maxLevel);
+    LOG_INFO("server.loading", "Building trade cache for {} levels...", maxLevel);
 
+    uint32 count = 0;
     ItemTemplateContainer const* itemTemplates = sObjectMgr->GetItemTemplateStore();
-
-    uint32 counter = 0;
-    for (uint32 level = 1; level <= maxLevel + 1; level += 10)
+    for (auto const& itr : *itemTemplates)
     {
-        for (auto const& itr : *itemTemplates)
+        ItemTemplate const* proto = &itr.second;
+        if (!proto)
+            continue;
+
+        if (proto->Class != ITEM_CLASS_TRADE_GOODS || proto->Bonding != NO_BIND)
+            continue;
+
+        if (proto->RequiredSkill)
+            continue;
+
+        uint32 requiredLevel = proto->RequiredLevel;
+        if (requiredLevel > maxLevel)
+            continue;
+
+        for (uint32 level = 1; level <= maxLevel + 1; level += 10)
         {
-            ItemTemplate const* proto = &itr.second;
-            if (!proto)
-                continue;
-
-            if (proto->Class != ITEM_CLASS_TRADE_GOODS || proto->Bonding != NO_BIND)
-                continue;
-
             if (proto->ItemLevel < level)
                 continue;
 
-            if (proto->RequiredLevel && (proto->RequiredLevel > level || proto->RequiredLevel < level - 10))
-                continue;
-
-            if (proto->RequiredSkill)
+            if (requiredLevel && (requiredLevel > level || requiredLevel < level - 10))
                 continue;
 
             tradeCache[level / 10].push_back(itr.first);
+            ++count;
         }
     }
 
-    for (uint32 level = 1; level <= maxLevel + 1; level += 10)
-    {
-        uint32 size = tradeCache[level / 10].size();
-        LOG_DEBUG("server.loading", "Trade cache for level={}: {} items", level, size);
-        ++counter;
-    }
-
-    LOG_INFO("server.loading", "Cached {} trade items", counter);  // TEST
+    LOG_INFO("server.loading", ">> Cached total {} Trade Items in {} ms", count, GetMSTimeDiffToNow(oldMSTime));
+    LOG_INFO("server.loading", " ");
 }
 
 uint32 RandomItemMgr::GetRandomTrade(uint32 level)
