@@ -155,7 +155,7 @@ public:
     uint32 GetStatWeight(Player* player, uint32 itemId);
     uint32 GetLiveStatWeight(Player* player, uint32 itemId);
     uint32 GetRandomItem(uint32 level, RandomItemType type, RandomItemPredicate* predicate = nullptr);
-    std::vector<uint32> GetAmmo(uint32 level, uint32 subClass);
+    uint32 GetAmmo(uint32 level, uint32 subClass);
     uint32 GetRandomPotion(uint32 level, uint32 effect);
     uint32 GetRandomFood(uint32 level, uint32 category);
     uint32 GetFood(uint32 level, uint32 category);

@@ -2353,7 +2353,29 @@ void RandomItemMgr::BuildCacheAmmo()
     LOG_INFO("server.loading", " ");
 }
 
-std::vector<uint32> RandomItemMgr::GetAmmo(uint32 level, uint32 subClass) { return ammoCache[level][subClass]; }
+uint32 RandomItemMgr::GetAmmo(uint32 level, uint32 subClass)
+{
+    std::vector<uint32> const& ammo = ammoCache[level][subClass];
+    if (ammo.empty())
+        return 0;
+
+    if (!sPlayerbotAIConfig.limitGearExpansion)
+        return ammo.front();
+
+    static constexpr uint32 EXPANSION_ITEM_ID_TBC   = 23728; // approx. first item in TBC content (patch 2.0)
+    static constexpr uint32 EXPANSION_ITEM_ID_WOTLK = 35570; // approx. first item in WotLK content (patch 3.0)
+    uint32 const maxEntryId = level <= 60 ? EXPANSION_ITEM_ID_TBC :
+                              level <= 70 ? EXPANSION_ITEM_ID_WOTLK :
+                              std::numeric_limits<uint32>::max();
+
+    for (uint32 entry : ammo)
+    {
+        if (entry < maxEntryId)
+            return entry;
+    }
+
+    return 0;
+}
 
 void RandomItemMgr::BuildCacheFood()
 {
