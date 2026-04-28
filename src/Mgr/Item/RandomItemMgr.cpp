@@ -165,7 +165,8 @@ void RandomItemMgr::Init()
 void RandomItemMgr::InitAfterAhBot()
 {
     BuildCacheRandomItem();
-    // BuildCacheRarity();
+    // if (!LoadCacheRarity())
+    //     BuildCacheRarity();
 }
 
 RandomItemMgr::~RandomItemMgr()
@@ -2304,8 +2305,6 @@ void RandomItemMgr::BuildCacheAmmo()
     for (auto const& itr : *itemTemplates)
     {
         ItemTemplate const* proto = &itr.second;
-        if (!proto)
-            continue;
 
         if (proto->Class != ITEM_CLASS_PROJECTILE ||
             (proto->SubClass != ITEM_SUBCLASS_ARROW && proto->SubClass != ITEM_SUBCLASS_BULLET))
@@ -2349,7 +2348,7 @@ void RandomItemMgr::BuildCacheAmmo()
         }
     }
 
-    LOG_INFO("server.loading", ">> Cached total {} Ammo in {} ms", count, GetMSTimeDiffToNow(oldMSTime));
+    LOG_INFO("server.loading", ">> Cached total {} ammo entries in {} ms", count, GetMSTimeDiffToNow(oldMSTime));
     LOG_INFO("server.loading", " ");
 }
 
@@ -2425,7 +2424,7 @@ void RandomItemMgr::BuildCacheFood()
         }
     }
 
-    LOG_INFO("server.loading", ">> Cached total {} Food in {} ms", count, GetMSTimeDiffToNow(oldMSTime));
+    LOG_INFO("server.loading", ">> Cached total {} food entries in {} ms", count, GetMSTimeDiffToNow(oldMSTime));
     LOG_INFO("server.loading", " ");
 }
 
@@ -2486,8 +2485,6 @@ void RandomItemMgr::BuildCachePotion()
     for (auto const& itr : *itemTemplates)
     {
         ItemTemplate const* proto = &itr.second;
-        if (!proto)
-            continue;
 
         if (proto->Class != ITEM_CLASS_CONSUMABLE ||
             (proto->SubClass != ITEM_SUBCLASS_POTION && proto->SubClass != ITEM_SUBCLASS_FLASK) ||
@@ -2544,7 +2541,7 @@ void RandomItemMgr::BuildCachePotion()
         }
     }
 
-    LOG_INFO("server.loading", ">> Cached total {} Potions in {} ms", count, GetMSTimeDiffToNow(oldMSTime));
+    LOG_INFO("server.loading", ">> Cached total {} potion entries in {} ms", count, GetMSTimeDiffToNow(oldMSTime));
     LOG_INFO("server.loading", " ");
 }
 
@@ -2570,8 +2567,6 @@ void RandomItemMgr::BuildCacheTrade()
     for (auto const& itr : *itemTemplates)
     {
         ItemTemplate const* proto = &itr.second;
-        if (!proto)
-            continue;
 
         if (proto->Class != ITEM_CLASS_TRADE_GOODS || proto->Bonding != NO_BIND)
             continue;
@@ -2596,7 +2591,7 @@ void RandomItemMgr::BuildCacheTrade()
         }
     }
 
-    LOG_INFO("server.loading", ">> Cached total {} Trade Items in {} ms", count, GetMSTimeDiffToNow(oldMSTime));
+    LOG_INFO("server.loading", ">> Cached total {} trade entries in {} ms", count, GetMSTimeDiffToNow(oldMSTime));
     LOG_INFO("server.loading", " ");
 }
 
@@ -2609,160 +2604,137 @@ uint32 RandomItemMgr::GetRandomTrade(uint32 level)
     return Acore::Containers::SelectRandomContainerElement(trade);
 }
 
+bool RandomItemMgr::LoadCacheRarity()
+{
+    uint32 const oldMSTime = getMSTime();
+
+    LOG_INFO("server.loading", "Loading item rarity cache...");
+
+    PreparedQueryResult result =
+        PlayerbotsDatabase.Query(PlayerbotsDatabase.GetPreparedStatement(PLAYERBOTS_SEL_RARITY_CACHE));
+
+    if (!result)
+    {
+        LOG_WARN("server.loading", ">> Loaded 0 rarity items. DB table `playerbots_rarity_cache` is empty!");
+        return false;
+    }
+
+    do
+    {
+        Field* fields = result->Fetch();
+        uint32 itemId = fields[0].Get<uint32>();
+        float rarity  = fields[1].Get<float>();
+
+        rarityCache[itemId] = rarity;
+    } while (result->NextRow());
+
+    LOG_INFO("server.loading", ">> Loaded {} item rarity records in {} ms", rarityCache.size(), GetMSTimeDiffToNow(oldMSTime));
+    LOG_INFO("server.loading", " ");
+
+    return true;
+}
+
 void RandomItemMgr::BuildCacheRarity()
 {
-    if (PreparedQueryResult result =
-            PlayerbotsDatabase.Query(PlayerbotsDatabase.GetPreparedStatement(PLAYERBOTS_SEL_RARITY_CACHE)))
+    uint32 const oldMSTime = getMSTime();
+
+    ItemTemplateContainer const* itemTemplates = sObjectMgr->GetItemTemplateStore();
+    LOG_INFO("server.loading", "Building rarity cache for {} items...", itemTemplates->size());
+
+    PlayerbotsDatabaseTransaction trans = PlayerbotsDatabase.BeginTransaction();
+
+    for (auto const& itr : *itemTemplates)
     {
-        LOG_INFO("playerbots", "Loading item rarity cache");
+        ItemTemplate const* proto = &itr.second;
 
-        uint32 count = 0;
-        do
-        {
-            Field* fields = result->Fetch();
-            uint32 itemId = fields[0].Get<uint32>();
-            float rarity = fields[1].Get<float>();
+        if (!proto->ItemLevel)
+            continue;
 
-            rarityCache[itemId] = rarity;
-            ++count;
+        if (proto->Duration & 0x80000000)
+            continue;
 
-        } while (result->NextRow());
+        if (proto->Quality == ITEM_QUALITY_POOR)
+            continue;
 
-        LOG_INFO("playerbots", "Item rarity cache loaded from {} records", count);
+        char const* itemName = proto->Name1.c_str();
+        if (strstri(itemName, "qa") || strstri(itemName, "test") || strstri(itemName, "deprecated"))
+            continue;
+
+        QueryResult result = WorldDatabase.Query(
+            "SELECT MAX(q.chance) FROM ( "
+            // <-- creature
+            "SELECT AVG(CASE WHEN lt.groupid = 0 THEN lt.ChanceOrQuestChance "
+            "    WHEN lt.ChanceOrQuestChance > 0 THEN lt.ChanceOrQuestChance "
+            "    ELSE IFNULL(100 - (SELECT SUM(ChanceOrQuestChance) FROM creature_loot_template lt1 "
+            "        WHERE lt1.groupid = lt.groupid AND lt1.entry = lt.entry AND lt1.ChanceOrQuestChance > 0), 100) "
+            "        / (SELECT COUNT(*) FROM creature_loot_template lt1 "
+            "        WHERE lt1.groupid = lt.groupid AND lt1.entry = lt.entry AND lt1.ChanceOrQuestChance = 0) "
+            "    END) chance FROM creature_loot_template lt "
+            "JOIN creature_template ct ON ct.LootId = lt.entry "
+            "JOIN creature c ON c.id1 = ct.entry WHERE lt.item = {0} "
+            "UNION ALL "
+            // <-- gameobject
+            "SELECT AVG(CASE WHEN lt.groupid = 0 THEN lt.ChanceOrQuestChance "
+            "    WHEN lt.ChanceOrQuestChance > 0 THEN lt.ChanceOrQuestChance "
+            "    ELSE IFNULL(100 - (SELECT SUM(ChanceOrQuestChance) FROM gameobject_loot_template lt1 "
+            "        WHERE lt1.groupid = lt.groupid AND lt1.entry = lt.entry AND lt1.ChanceOrQuestChance > 0), 100) "
+            "        / (SELECT COUNT(*) FROM gameobject_loot_template lt1 "
+            "        WHERE lt1.groupid = lt.groupid AND lt1.entry = lt.entry AND lt1.ChanceOrQuestChance = 0) "
+            "    END) chance FROM gameobject_loot_template lt "
+            "JOIN gameobject_template ct ON ct.data1 = lt.entry "
+            "JOIN gameobject c ON c.id1 = ct.entry WHERE lt.item = {0} "
+            "UNION ALL "
+            // <-- disenchant
+            "SELECT AVG(CASE WHEN lt.groupid = 0 THEN lt.ChanceOrQuestChance "
+            "    WHEN lt.ChanceOrQuestChance > 0 THEN lt.ChanceOrQuestChance "
+            "    ELSE IFNULL(100 - (SELECT SUM(ChanceOrQuestChance) FROM disenchant_loot_template lt1 "
+            "        WHERE lt1.groupid = lt.groupid AND lt1.entry = lt.entry AND lt1.ChanceOrQuestChance > 0), 100) "
+            "        / (SELECT COUNT(*) FROM disenchant_loot_template lt1 "
+            "        WHERE lt1.groupid = lt.groupid AND lt1.entry = lt.entry AND lt1.ChanceOrQuestChance = 0) "
+            "    END) chance FROM disenchant_loot_template lt "
+            "JOIN item_template ct ON ct.DisenchantID = lt.entry WHERE lt.item = {0} "
+            "UNION ALL "
+            // <-- fishing
+            "SELECT AVG(CASE WHEN lt.groupid = 0 THEN lt.ChanceOrQuestChance "
+            "    WHEN lt.ChanceOrQuestChance > 0 THEN lt.ChanceOrQuestChance "
+            "    ELSE IFNULL(100 - (SELECT SUM(ChanceOrQuestChance) FROM fishing_loot_template lt1 "
+            "        WHERE lt1.groupid = lt.groupid AND lt1.entry = lt.entry AND lt1.ChanceOrQuestChance > 0), 100) "
+            "        / (SELECT COUNT(*) FROM fishing_loot_template lt1 "
+            "        WHERE lt1.groupid = lt.groupid AND lt1.entry = lt.entry AND lt1.ChanceOrQuestChance = 0) "
+            "    END) chance FROM fishing_loot_template lt WHERE lt.item = {0} "
+            "UNION ALL "
+            // <-- skining
+            "SELECT AVG(CASE WHEN lt.groupid = 0 THEN lt.ChanceOrQuestChance "
+            "    WHEN lt.ChanceOrQuestChance > 0 THEN lt.ChanceOrQuestChance "
+            "    ELSE IFNULL(100 - (SELECT SUM(ChanceOrQuestChance) FROM skinning_loot_template lt1 "
+            "        WHERE lt1.groupid = lt.groupid AND lt1.entry = lt.entry AND lt1.ChanceOrQuestChance > 0), 100) "
+            "        * IFNULL((SELECT 1/COUNT(*) FROM skinning_loot_template lt1 "
+            "        WHERE lt1.groupid = lt.groupid AND lt1.entry = lt.entry AND lt1.ChanceOrQuestChance = 0), 1) "
+            "    END) chance FROM skinning_loot_template lt "
+            "JOIN creature_template ct ON ct.SkinningLootId = lt.entry "
+            "JOIN creature c ON c.id1 = ct.entry WHERE lt.item = {0}) q;",
+            proto->ItemId);
+
+        if (!result)
+            continue;
+
+        float const rarity = result->Fetch()[0].Get<float>();
+        if (rarity <= 0.01f)
+            continue;
+
+        rarityCache[proto->ItemId] = rarity;
+
+        PlayerbotsDatabasePreparedStatement* stmt =
+            PlayerbotsDatabase.GetPreparedStatement(PLAYERBOTS_INS_RARITY_CACHE);
+        stmt->SetData(0, proto->ItemId);
+        stmt->SetData(1, rarity);
+        trans->Append(stmt);
     }
-    else
-    {
-        ItemTemplateContainer const* itemTemplates = sObjectMgr->GetItemTemplateStore();
-        LOG_INFO("playerbots", "Building item rarity cache from {} items", itemTemplates->size());
 
-        for (auto const& itr : *itemTemplates)
-        {
-            ItemTemplate const* proto = &itr.second;
-            if (!proto)
-                continue;
+    PlayerbotsDatabase.CommitTransaction(trans);
 
-            if (proto->Duration & 0x80000000)
-                continue;
-
-            if (proto->Quality == ITEM_QUALITY_POOR)
-                continue;
-
-            if (strstri(proto->Name1.c_str(), "qa") || strstri(proto->Name1.c_str(), "test") ||
-                strstri(proto->Name1.c_str(), "deprecated"))
-                continue;
-
-            if (!proto->ItemLevel)
-                continue;
-
-            QueryResult results = WorldDatabase.Query(
-                "SELECT MAX(q.chance) FROM ( "
-                // "-- Creature "
-                "SELECT  "
-                "AVG ( "
-                "   CASE  "
-                "    WHEN lt.groupid = 0 THEN lt.ChanceOrQuestChance  "
-                "    WHEN lt.ChanceOrQuestChance > 0 THEN lt.ChanceOrQuestChance "
-                "    ELSE   "
-                "    IFNULL(100 - (SELECT SUM(ChanceOrQuestChance) FROM creature_loot_template lt1 WHERE lt1.groupid = "
-                "lt.groupid AND lt1.entry = lt.entry AND lt1.ChanceOrQuestChance > 0), 100) "
-                "    / (SELECT COUNT(*) FROM creature_loot_template lt1 WHERE lt1.groupid = lt.groupid AND lt1.entry = "
-                "lt.entry AND lt1.ChanceOrQuestChance = 0) "
-                "    END "
-                ") chance, 'creature' type "
-                "FROM creature_loot_template lt "
-                "JOIN creature_template ct ON ct.LootId = lt.entry "
-                "JOIN creature c ON c.id1 = ct.entry "
-                "WHERE lt.item = {} "
-                "union all "
-                // "-- Gameobject "
-                "SELECT  "
-                "AVG ( "
-                "   CASE  "
-                "    WHEN lt.groupid = 0 THEN lt.ChanceOrQuestChance  "
-                "    WHEN lt.ChanceOrQuestChance > 0 THEN lt.ChanceOrQuestChance "
-                "    ELSE   "
-                "    IFNULL(100 - (SELECT SUM(ChanceOrQuestChance) FROM gameobject_loot_template lt1 WHERE lt1.groupid "
-                "= lt.groupid AND lt1.entry = lt.entry AND lt1.ChanceOrQuestChance > 0), 100) "
-                "    / (SELECT COUNT(*) FROM gameobject_loot_template lt1 WHERE lt1.groupid = lt.groupid AND lt1.entry "
-                "= lt.entry AND lt1.ChanceOrQuestChance = 0) "
-                "    END "
-                ") chance, 'gameobject' type "
-                "FROM gameobject_loot_template lt "
-                "JOIN gameobject_template ct ON ct.data1 = lt.entry "
-                "JOIN gameobject c ON c.id1 = ct.entry "
-                "WHERE lt.item = {} "
-                "union all "
-                // "-- Disenchant "
-                "SELECT  "
-                "AVG ( "
-                "   CASE  "
-                "    WHEN lt.groupid = 0 THEN lt.ChanceOrQuestChance  "
-                "    WHEN lt.ChanceOrQuestChance > 0 THEN lt.ChanceOrQuestChance "
-                "    ELSE   "
-                "    IFNULL(100 - (SELECT SUM(ChanceOrQuestChance) FROM disenchant_loot_template lt1 WHERE lt1.groupid "
-                "= lt.groupid AND lt1.entry = lt.entry AND lt1.ChanceOrQuestChance > 0), 100) "
-                "    / (SELECT COUNT(*) FROM disenchant_loot_template lt1 WHERE lt1.groupid = lt.groupid AND lt1.entry "
-                "= lt.entry AND lt1.ChanceOrQuestChance = 0) "
-                "    END "
-                ") chance, 'disenchant' type "
-                "FROM disenchant_loot_template lt "
-                "JOIN item_template ct ON ct.DisenchantID = lt.entry "
-                "WHERE lt.item = {} "
-                "union all "
-                // "-- Fishing "
-                "SELECT  "
-                "AVG ( "
-                "   CASE  "
-                "    WHEN lt.groupid = 0 THEN lt.ChanceOrQuestChance  "
-                "    WHEN lt.ChanceOrQuestChance > 0 THEN lt.ChanceOrQuestChance "
-                "    ELSE   "
-                "    IFNULL(100 - (SELECT SUM(ChanceOrQuestChance) FROM fishing_loot_template lt1 WHERE lt1.groupid = "
-                "lt.groupid AND lt1.entry = lt.entry AND lt1.ChanceOrQuestChance > 0), 100) "
-                "    / (SELECT COUNT(*) FROM fishing_loot_template lt1 WHERE lt1.groupid = lt.groupid AND lt1.entry = "
-                "lt.entry AND lt1.ChanceOrQuestChance = 0) "
-                "    END "
-                ") chance, 'fishing' type "
-                "FROM fishing_loot_template lt "
-                "WHERE lt.item = {} "
-                "union all "
-                // "-- Skinning "
-                "SELECT  "
-                "AVG ( "
-                "   CASE  "
-                "    WHEN lt.groupid = 0 THEN lt.ChanceOrQuestChance  "
-                "    WHEN lt.ChanceOrQuestChance > 0 THEN lt.ChanceOrQuestChance  "
-                "    ELSE   "
-                "    IFNULL(100 - (SELECT SUM(ChanceOrQuestChance) FROM skinning_loot_template lt1 WHERE lt1.groupid = "
-                "lt.groupid AND lt1.entry = lt.entry AND lt1.ChanceOrQuestChance > 0), 100) "
-                "    * IFNULL((SELECT 1/COUNT(*) FROM skinning_loot_template lt1 WHERE lt1.groupid = lt.groupid AND "
-                "lt1.entry = lt.entry AND lt1.ChanceOrQuestChance = 0), 1) "
-                "    END "
-                ") chance, 'skinning' type "
-                "FROM skinning_loot_template lt "
-                "JOIN creature_template ct ON ct.SkinningLootId = lt.entry "
-                "JOIN creature c ON c.id1 = ct.entry "
-                "WHERE lt.item = {}) q; ",
-                itr.first, itr.first, itr.first, itr.first, itr.first);
-
-            if (results)
-            {
-                Field* fields = results->Fetch();
-                float rarity = fields[0].Get<float>();
-                if (rarity > 0.01)
-                {
-                    rarityCache[itr.first] = rarity;
-
-                    PlayerbotsDatabasePreparedStatement* stmt =
-                        PlayerbotsDatabase.GetPreparedStatement(PLAYERBOTS_INS_RARITY_CACHE);
-                    stmt->SetData(0, itr.first);
-                    stmt->SetData(1, rarity);
-                    PlayerbotsDatabase.Execute(stmt);
-                }
-            }
-        }
-
-        LOG_INFO("playerbots", "Item rarity cache built from {} items", itemTemplates->size());
-    }
+    LOG_INFO("server.loading", ">> Cached total {} rarity entries in {} ms", rarityCache.size(), GetMSTimeDiffToNow(oldMSTime));
+    LOG_INFO("server.loading", " ");
 }
 
 float RandomItemMgr::GetItemRarity(uint32 itemId) { return rarityCache[itemId]; }

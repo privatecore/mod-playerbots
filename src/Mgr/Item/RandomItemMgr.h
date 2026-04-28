@@ -174,6 +174,8 @@ public:
     std::vector<uint32> GetCachedEquipments(uint32 requiredLevel, uint32 inventoryType);
 
 private:
+    bool LoadCacheRarity();
+
     void BuildCacheRandomItem();
     void BuildCacheEquip();
     void BuildCacheEquipNew();
@@ -183,6 +185,7 @@ private:
     void BuildCachePotion();
     void BuildCacheTrade();
     void BuildCacheRarity();
+
     bool CanEquipItem(BotEquipKey key, ItemTemplate const* proto);
     bool CanEquipItemNew(ItemTemplate const* proto);
     void AddItemStats(uint32 mod, uint8& sp, uint8& ap, uint8& tank);
