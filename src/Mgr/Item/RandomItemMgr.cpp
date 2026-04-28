@@ -164,7 +164,9 @@ void RandomItemMgr::Init()
 
 void RandomItemMgr::InitAfterAhBot()
 {
-    BuildCacheRandomItem();
+    if (!LoadCacheRandomItem())
+        BuildCacheRandomItem();
+    DebugCacheRandomItem();
     // if (!LoadCacheRarity())
     //     BuildCacheRarity();
 }
@@ -209,91 +211,126 @@ RandomItemList RandomItemMgr::Query(uint32 level, RandomItemType type, RandomIte
     return result;
 }
 
+bool RandomItemMgr::LoadCacheRandomItem()
+{
+    uint32 const oldMSTime = getMSTime();
+
+    LOG_INFO("server.loading", "Loading random item cache...");
+
+    PreparedQueryResult result =
+        PlayerbotsDatabase.Query(PlayerbotsDatabase.GetPreparedStatement(PLAYERBOTS_SEL_RNDITEM_CACHE));
+
+    if (!result)
+    {
+        LOG_WARN("server.loading", ">> Loaded 0 random items. DB table `playerbots_rnditem_cache` is empty!");
+        return false;
+    }
+
+    uint32 count = 0;
+    do
+    {
+        Field* fields = result->Fetch();
+        uint32 level  = fields[0].Get<uint32>();
+        uint32 type   = fields[1].Get<uint32>();
+        uint32 itemId = fields[2].Get<uint32>();
+
+        RandomItemType const rit = static_cast<RandomItemType>(type);
+
+        randomItemCache[level][rit].push_back(itemId);
+
+        ++count;
+    } while (result->NextRow());
+
+    LOG_INFO("server.loading", ">> Loaded {} random item records in {} ms", count, GetMSTimeDiffToNow(oldMSTime));
+    LOG_INFO("server.loading", " ");
+
+    return true;
+}
+
 void RandomItemMgr::BuildCacheRandomItem()
 {
-    if (PreparedQueryResult result =
-            PlayerbotsDatabase.Query(PlayerbotsDatabase.GetPreparedStatement(PLAYERBOTS_SEL_RNDITEM_CACHE)))
-    {
-        LOG_INFO("server.loading", "Loading random item cache");
-        uint32 count = 0;
-        do
-        {
-            Field* fields = result->Fetch();
-            uint32 level = fields[0].Get<uint32>();
-            uint32 type = fields[1].Get<uint32>();
-            uint32 itemId = fields[2].Get<uint32>();
+    uint32 const oldMSTime = getMSTime();
 
-            RandomItemType rit = (RandomItemType)type;
-            randomItemCache[level][rit].push_back(itemId);
+    ItemTemplateContainer const* itemTemplates = sObjectMgr->GetItemTemplateStore();
+    LOG_INFO("server.loading", "Building random item cache from {} items", itemTemplates->size());
+
+    PlayerbotsDatabaseTransaction trans = PlayerbotsDatabase.BeginTransaction();
+
+    uint32 count = 0;
+    for (auto const& itr : *itemTemplates)
+    {
+        ItemTemplate const* proto = &itr.second;
+
+        if (!proto->ItemLevel || !proto->SellPrice)
+            continue;
+
+        if (proto->Duration & 0x80000000)
+            continue;
+
+        char const* itemName = proto->Name1.c_str();
+        if (strstri(itemName, "qa") || strstri(itemName, "test") || strstri(itemName, "deprecated"))
+            continue;
+
+        uint32 level = proto->ItemLevel;
+        for (uint8 type = RANDOM_ITEM_GUILD_TASK; type <= RANDOM_ITEM_GUILD_TASK_REWARD_TRADE_RARE; ++type)
+        {
+            RandomItemType const rit = static_cast<RandomItemType>(type);
+            if (predicates[rit] && !predicates[rit]->Apply(proto))
+                continue;
+
+            randomItemCache[level / 10][rit].push_back(itr.first);
             ++count;
 
-        } while (result->NextRow());
-
-        LOG_INFO("server.loading", "Equipment cache loaded from {} records", count);
+            PlayerbotsDatabasePreparedStatement* stmt =
+                PlayerbotsDatabase.GetPreparedStatement(PLAYERBOTS_INS_RNDITEM_CACHE);
+            stmt->SetData(0, level / 10);
+            stmt->SetData(1, type);
+            stmt->SetData(2, itr.first);
+            trans->Append(stmt);
+        }
     }
-    else
+
+    PlayerbotsDatabase.CommitTransaction(trans);
+
+    LOG_INFO("server.loading", ">> Cached total {} random items in {} ms", count, GetMSTimeDiffToNow(oldMSTime));
+    LOG_INFO("server.loading", " ");
+}
+
+void RandomItemMgr::DebugCacheRandomItem()
+{
+    // NOTE: Not sure if anyone ever used this data, because it produces a huge
+    // amount of output to the file/console. It might be better to create separate
+    // command and/or method that shows the cache contents on demand.
+
+    if (!sLog->ShouldLog("playerbots", LogLevel::LOG_LEVEL_DEBUG))
+        return;
+
+    uint32 const maxLevelBucket = sPlayerbotAIConfig.randomBotMaxLevel / 10;
+
+    for (uint32 level = 0; level < maxLevelBucket; ++level)
     {
-        ItemTemplateContainer const* itemTemplates = sObjectMgr->GetItemTemplateStore();
-        LOG_INFO("server.loading", "Building random item cache from {} items", itemTemplates->size());
+        auto const levelItr = randomItemCache.find(level);
+        if (levelItr == randomItemCache.end())
+            continue;
 
-        for (auto const& itr : *itemTemplates)
+        for (uint8 type = RANDOM_ITEM_GUILD_TASK; type <= RANDOM_ITEM_GUILD_TASK_REWARD_TRADE_RARE; ++type)
         {
-            ItemTemplate const* proto = &itr.second;
-            if (!proto)
+            auto const typeItr = levelItr->second.find(static_cast<RandomItemType>(type));
+            if (typeItr == levelItr->second.end())
                 continue;
 
-            if (proto->Duration & 0x80000000)
-                continue;
+            RandomItemList const& list = typeItr->second;
 
-            if (strstri(proto->Name1.c_str(), "qa") || strstri(proto->Name1.c_str(), "test") ||
-                strstri(proto->Name1.c_str(), "deprecated"))
-                continue;
+            LOG_DEBUG("playerbots", "    Level {}..{} Type {} - {} random items cached",
+                      level * 10, level * 10 + 9, type, list.size());
 
-            if (!proto->ItemLevel)
-                continue;
-
-            if (!proto->SellPrice)
-                continue;
-
-            uint32 level = proto->ItemLevel;
-            for (uint32 type = RANDOM_ITEM_GUILD_TASK; type <= RANDOM_ITEM_GUILD_TASK_REWARD_TRADE_RARE; type++)
+            for (uint32 const itemId : list)
             {
-                RandomItemType rit = (RandomItemType)type;
-                if (predicates[rit] && !predicates[rit]->Apply(proto))
+                ItemTemplate const* proto = sObjectMgr->GetItemTemplate(itemId);
+                if (!proto)
                     continue;
 
-                randomItemCache[level / 10][rit].push_back(itr.first);
-
-                PlayerbotsDatabasePreparedStatement* stmt =
-                    PlayerbotsDatabase.GetPreparedStatement(PLAYERBOTS_INS_RNDITEM_CACHE);
-                stmt->SetData(0, level / 10);
-                stmt->SetData(1, type);
-                stmt->SetData(2, itr.first);
-                PlayerbotsDatabase.Execute(stmt);
-            }
-        }
-
-        uint32 maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
-        if (maxLevel > sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL))
-            maxLevel = sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL);
-
-        for (uint32 level = 0; level < maxLevel / 10; level++)
-        {
-            for (uint32 type = RANDOM_ITEM_GUILD_TASK; type <= RANDOM_ITEM_GUILD_TASK_REWARD_TRADE_RARE; type++)
-            {
-                RandomItemList list = randomItemCache[level][(RandomItemType)type];
-                LOG_INFO("playerbots", "    Level {}..{} Type {} - {} random items cached", level * 10, level * 10 + 9,
-                         type, list.size());
-
-                for (RandomItemList::iterator i = list.begin(); i != list.end(); ++i)
-                {
-                    uint32 itemId = *i;
-                    ItemTemplate const* proto = sObjectMgr->GetItemTemplate(itemId);
-                    if (!proto)
-                        continue;
-
-                    LOG_DEBUG("playerbots", "        [{}] {}", itemId, proto->Name1.c_str());
-                }
+                LOG_DEBUG("playerbots", "        [{}] {}", itemId, proto->Name1.c_str());
             }
         }
     }
@@ -305,10 +342,7 @@ uint32 RandomItemMgr::GetRandomItem(uint32 level, RandomItemType type, RandomIte
     if (list.empty())
         return 0;
 
-    uint32 index = urand(0, list.size() - 1);
-    uint32 itemId = list[index];
-
-    return itemId;
+    return Acore::Containers::SelectRandomContainerElement(list);
 }
 
 bool RandomItemMgr::CanEquipItem(BotEquipKey key, ItemTemplate const* proto)
@@ -2284,7 +2318,7 @@ RandomItemList RandomItemMgr::Query(uint32 level, uint8 clazz, uint8 slot, uint3
 
 void RandomItemMgr::BuildCacheAmmo()
 {
-    uint32 oldMSTime = getMSTime();
+    uint32 const oldMSTime = getMSTime();
 
     uint32 maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
 
@@ -2378,7 +2412,7 @@ uint32 RandomItemMgr::GetAmmo(uint32 level, uint32 subClass)
 
 void RandomItemMgr::BuildCacheFood()
 {
-    uint32 oldMSTime = getMSTime();
+    uint32 const oldMSTime = getMSTime();
 
     uint32 maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
 
@@ -2474,7 +2508,7 @@ uint32 RandomItemMgr::GetRandomFood(uint32 level, uint32 category)
 
 void RandomItemMgr::BuildCachePotion()
 {
-    uint32 oldMSTime = getMSTime();
+    uint32 const oldMSTime = getMSTime();
 
     uint32 maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
 
@@ -2556,7 +2590,7 @@ uint32 RandomItemMgr::GetRandomPotion(uint32 level, uint32 effect)
 
 void RandomItemMgr::BuildCacheTrade()
 {
-    uint32 oldMSTime = getMSTime();
+    uint32 const oldMSTime = getMSTime();
 
     uint32 maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
 
