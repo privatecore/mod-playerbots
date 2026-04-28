@@ -144,13 +144,20 @@ public:
 public:
     void Init();
     void InitAfterAhBot();
+
     static bool HandleConsoleCommand(ChatHandler* handler, char const* args);
+
     RandomItemList Query(uint32 level, RandomItemType type, RandomItemPredicate* predicate);
     RandomItemList Query(uint32 level, uint8 clazz, uint8 slot, uint32 quality);
+
     uint32 GetUpgrade(Player* player, std::string spec, uint8 slot, uint32 quality, uint32 itemId);
     std::vector<uint32> GetUpgradeList(Player* player, std::string spec, uint8 slot, uint32 quality, uint32 itemId,
                                        uint32 amount = 1);
+
     bool HasStatWeight(uint32 itemId);
+    uint32 CalculateStatWeight(uint8 playerclass, uint8 spec, ItemTemplate const* proto);
+    uint32 CalculateSingleStatWeight(uint8 playerclass, uint8 spec, std::string stat, uint32 value);
+
     uint32 GetMinLevelFromCache(uint32 itemId);
     uint32 GetStatWeight(Player* player, uint32 itemId);
     uint32 GetLiveStatWeight(Player* player, uint32 itemId);
@@ -160,18 +167,20 @@ public:
     uint32 GetRandomFood(uint32 level, uint32 category);
     uint32 GetFood(uint32 level, uint32 category);
     uint32 GetRandomTrade(uint32 level);
-    uint32 CalculateStatWeight(uint8 playerclass, uint8 spec, ItemTemplate const* proto);
-    uint32 CalculateSingleStatWeight(uint8 playerclass, uint8 spec, std::string stat, uint32 value);
+    float GetItemRarity(uint32 itemId);
+    std::vector<uint32> GetCachedEquipments(uint32 requiredLevel, uint32 inventoryType);
+
     bool CanEquipArmor(uint8 clazz, uint32 level, ItemTemplate const* proto);
     bool ShouldEquipArmorForSpec(uint8 playerclass, uint8 spec, ItemTemplate const* proto);
     bool CanEquipWeapon(uint8 clazz, ItemTemplate const* proto);
     bool ShouldEquipWeaponForSpec(uint8 playerclass, uint8 spec, ItemTemplate const* proto);
-    float GetItemRarity(uint32 itemId);
+
     uint32 GetQuestIdForItem(uint32 itemId);
     std::vector<uint32> GetQuestIdsForItem(uint32 itemId);
+
+    bool IsTestItem(uint32 itemId) const { return itemForTest.contains(itemId); }
+
     static bool IsUsedBySkill(ItemTemplate const* proto, uint32 skillId);
-    bool IsTestItem(uint32 itemId) { return itemForTest.find(itemId) != itemForTest.end(); }
-    std::vector<uint32> GetCachedEquipments(uint32 requiredLevel, uint32 inventoryType);
 
 private:
     bool LoadCacheRandomItem();

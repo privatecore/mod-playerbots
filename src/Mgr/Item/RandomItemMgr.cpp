@@ -179,7 +179,7 @@ RandomItemMgr::~RandomItemMgr()
     predicates.clear();
 }
 
-bool RandomItemMgr::HandleConsoleCommand(ChatHandler* handler, char const* args)
+bool RandomItemMgr::HandleConsoleCommand(ChatHandler* /* handler */, char const* args)
 {
     if (!args || !*args)
     {
@@ -2771,7 +2771,11 @@ void RandomItemMgr::BuildCacheRarity()
     LOG_INFO("server.loading", " ");
 }
 
-float RandomItemMgr::GetItemRarity(uint32 itemId) { return rarityCache[itemId]; }
+float RandomItemMgr::GetItemRarity(uint32 itemId)
+{
+    auto const itr = rarityCache.find(itemId);
+    return itr != rarityCache.end() ? itr->second : 0.0f;
+}
 
 inline bool IsCraftedBySpellInfo(uint32 itemId, SpellInfo const* spellInfo)
 {
