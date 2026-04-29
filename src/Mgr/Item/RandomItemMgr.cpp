@@ -2328,9 +2328,9 @@ void RandomItemMgr::BuildCacheAmmo()
     {
         uint32 entry;
         uint32 subClass;
+        uint32 itemLevel;
         uint32 requiredLevel;
         uint32 stackable;
-        uint32 itemLevel;
     };
 
     std::vector<AmmoEntry> ammoItems;
@@ -2340,14 +2340,19 @@ void RandomItemMgr::BuildCacheAmmo()
     {
         ItemTemplate const* proto = &itr.second;
 
-        if (proto->Class != ITEM_CLASS_PROJECTILE ||
-            (proto->SubClass != ITEM_SUBCLASS_ARROW && proto->SubClass != ITEM_SUBCLASS_BULLET))
+        if (proto->Class != ITEM_CLASS_PROJECTILE)
             continue;
 
-        if (proto->Flags & ITEM_FLAG_DEPRECATED)
+        if (proto->SubClass != ITEM_SUBCLASS_ARROW && proto->SubClass != ITEM_SUBCLASS_BULLET)
             continue;
 
-        if (proto->Duration)
+        if (proto->HasFlag(ITEM_FLAG_DEPRECATED))
+            continue;
+
+        if (proto->Duration & 0x80000000)
+            continue;
+
+        if (proto->Area || proto->Map)
             continue;
 
         if (proto->RequiredLevel == 0)
@@ -2356,8 +2361,8 @@ void RandomItemMgr::BuildCacheAmmo()
         if (proto->Damage[0].DamageMin == 0.0f)
             continue;
 
-        ammoItems.push_back({itr.first, proto->SubClass, proto->RequiredLevel,
-                            proto->GetMaxStackSize(), proto->ItemLevel});
+        ammoItems.push_back({itr.first, proto->SubClass, proto->ItemLevel, proto->RequiredLevel,
+                            proto->GetMaxStackSize()});
     }
 
     // we want higher stack sizes first, then higher item levels, to ensure bots
@@ -2418,6 +2423,8 @@ void RandomItemMgr::BuildCacheFood()
 
     LOG_INFO("server.loading", "Building food cache for {} levels...", maxLevel);
 
+    constexpr uint32 MAX_FOOD_LEVEL_DELTA = 10;
+
     uint32 count = 0;
     ItemTemplateContainer const* itemTemplates = sObjectMgr->GetItemTemplateStore();
     for (auto const& itr : *itemTemplates)
@@ -2426,12 +2433,19 @@ void RandomItemMgr::BuildCacheFood()
         if (!proto)
             continue;
 
-        if (proto->Class != ITEM_CLASS_CONSUMABLE ||
-            (proto->SubClass != ITEM_SUBCLASS_FOOD && proto->SubClass != ITEM_SUBCLASS_CONSUMABLE) ||
-            proto->Bonding != NO_BIND)
+        if (proto->Class != ITEM_CLASS_CONSUMABLE)
             continue;
 
-        if (proto->Spells[0].SpellCategory != SPELL_CATEGORY_FOOD && proto->Spells[0].SpellCategory != SPELL_CATEGORY_DRINK)
+        if (proto->SubClass != ITEM_SUBCLASS_FOOD && proto->SubClass != ITEM_SUBCLASS_CONSUMABLE)
+            continue;
+
+        if (proto->Bonding != NO_BIND)
+            continue;
+
+        if (proto->HasFlag(ITEM_FLAG_DEPRECATED))
+            continue;
+
+        if (proto->Duration & 0x80000000)
             continue;
 
         if (proto->RequiredSkill)
@@ -2440,7 +2454,8 @@ void RandomItemMgr::BuildCacheFood()
         if (proto->Area || proto->Map || proto->RequiredCityRank || proto->RequiredHonorRank)
             continue;
 
-        if (proto->Duration & 0x80000000)
+        if (proto->Spells[0].SpellCategory != SPELL_CATEGORY_FOOD &&
+            proto->Spells[0].SpellCategory != SPELL_CATEGORY_DRINK)
             continue;
 
         uint32 requiredLevel = proto->RequiredLevel;
@@ -2450,7 +2465,7 @@ void RandomItemMgr::BuildCacheFood()
         uint32 category = proto->Spells[0].SpellCategory;
         for (uint32 level = 1; level <= maxLevel + 1; level += 10)
         {
-            if (requiredLevel && (requiredLevel > level || requiredLevel < level - 10))
+            if (requiredLevel && (requiredLevel > level || requiredLevel < level - MAX_FOOD_LEVEL_DELTA))
                 continue;
 
             foodCache[level / 10][category].push_back(itr.first);
@@ -2514,27 +2529,36 @@ void RandomItemMgr::BuildCachePotion()
 
     LOG_INFO("server.loading", "Building potion cache for {} levels...", maxLevel);
 
+    constexpr uint32 MAX_POTION_LEVEL_DELTA = 13;
+
     uint32 count = 0;
     ItemTemplateContainer const* itemTemplates = sObjectMgr->GetItemTemplateStore();
     for (auto const& itr : *itemTemplates)
     {
         ItemTemplate const* proto = &itr.second;
 
-        if (proto->Class != ITEM_CLASS_CONSUMABLE ||
-            (proto->SubClass != ITEM_SUBCLASS_POTION && proto->SubClass != ITEM_SUBCLASS_FLASK) ||
-            proto->Bonding != NO_BIND)
+        if (proto->Class != ITEM_CLASS_CONSUMABLE)
             continue;
 
-        if (proto->RequiredSkill)
+        if (proto->SubClass != ITEM_SUBCLASS_POTION && proto->SubClass != ITEM_SUBCLASS_FLASK)
             continue;
 
-        if (proto->Area || proto->Map || proto->RequiredCityRank || proto->RequiredHonorRank)
+        if (proto->Bonding != NO_BIND)
+            continue;
+
+        if (proto->HasFlag(ITEM_FLAG_DEPRECATED))
             continue;
 
         if (proto->Duration & 0x80000000)
             continue;
 
         if (proto->AllowableClass != 0xFFFFFFFF)
+            continue;
+
+        if (proto->RequiredSkill)
+            continue;
+
+        if (proto->Area || proto->Map || proto->RequiredCityRank || proto->RequiredHonorRank)
             continue;
 
         SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(proto->Spells[0].SpellId);
@@ -2567,7 +2591,7 @@ void RandomItemMgr::BuildCachePotion()
         uint32 effect = spellInfo->Effects[EFFECT_0].Effect;
         for (uint32 level = std::max(1u, requiredLevel); level <= maxLevel; ++level)
         {
-            if (level > 13 && level - requiredLevel > 13)
+            if (level > MAX_POTION_LEVEL_DELTA && level - requiredLevel > MAX_POTION_LEVEL_DELTA)
                 break;
 
             potionCache[level][effect].push_back(itr.first);
@@ -2592,9 +2616,11 @@ void RandomItemMgr::BuildCacheTrade()
 {
     uint32 const oldMSTime = getMSTime();
 
-    uint32 maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
+    uint32 const maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
 
     LOG_INFO("server.loading", "Building trade cache for {} levels...", maxLevel);
+
+    constexpr uint32 MAX_TRADE_LEVEL_DELTA = 10;
 
     uint32 count = 0;
     ItemTemplateContainer const* itemTemplates = sObjectMgr->GetItemTemplateStore();
@@ -2602,7 +2628,16 @@ void RandomItemMgr::BuildCacheTrade()
     {
         ItemTemplate const* proto = &itr.second;
 
-        if (proto->Class != ITEM_CLASS_TRADE_GOODS || proto->Bonding != NO_BIND)
+        if (proto->Class != ITEM_CLASS_TRADE_GOODS)
+            continue;
+
+        if (proto->Bonding != NO_BIND)
+            continue;
+
+        if (proto->HasFlag(ITEM_FLAG_DEPRECATED))
+            continue;
+
+        if (proto->Duration & 0x80000000)
             continue;
 
         if (proto->RequiredSkill)
@@ -2617,7 +2652,7 @@ void RandomItemMgr::BuildCacheTrade()
             if (proto->ItemLevel < level)
                 continue;
 
-            if (requiredLevel && (requiredLevel > level || requiredLevel < level - 10))
+            if (requiredLevel && (requiredLevel > level || requiredLevel < level - MAX_TRADE_LEVEL_DELTA))
                 continue;
 
             tradeCache[level / 10].push_back(itr.first);
@@ -2662,7 +2697,8 @@ bool RandomItemMgr::LoadCacheRarity()
         rarityCache[itemId] = rarity;
     } while (result->NextRow());
 
-    LOG_INFO("server.loading", ">> Loaded {} item rarity records in {} ms", rarityCache.size(), GetMSTimeDiffToNow(oldMSTime));
+    LOG_INFO("server.loading", ">> Loaded {} item rarity records in {} ms", rarityCache.size(),
+             GetMSTimeDiffToNow(oldMSTime));
     LOG_INFO("server.loading", " ");
 
     return true;
@@ -2681,13 +2717,16 @@ void RandomItemMgr::BuildCacheRarity()
     {
         ItemTemplate const* proto = &itr.second;
 
-        if (!proto->ItemLevel)
+        if (proto->Quality == ITEM_QUALITY_POOR)
+            continue;
+
+        if (proto->HasFlag(ITEM_FLAG_DEPRECATED))
             continue;
 
         if (proto->Duration & 0x80000000)
             continue;
 
-        if (proto->Quality == ITEM_QUALITY_POOR)
+        if (proto->ItemLevel == 0)
             continue;
 
         char const* itemName = proto->Name1.c_str();
@@ -2767,7 +2806,8 @@ void RandomItemMgr::BuildCacheRarity()
 
     PlayerbotsDatabase.CommitTransaction(trans);
 
-    LOG_INFO("server.loading", ">> Cached total {} rarity entries in {} ms", rarityCache.size(), GetMSTimeDiffToNow(oldMSTime));
+    LOG_INFO("server.loading", ">> Cached total {} rarity entries in {} ms", rarityCache.size(),
+             GetMSTimeDiffToNow(oldMSTime));
     LOG_INFO("server.loading", " ");
 }
 
@@ -2779,7 +2819,7 @@ float RandomItemMgr::GetItemRarity(uint32 itemId)
 
 inline bool IsCraftedBySpellInfo(uint32 itemId, SpellInfo const* spellInfo)
 {
-    for (uint32 x = 0; x < MAX_SPELL_REAGENTS; ++x)
+    for (uint8 x = 0; x < MAX_SPELL_REAGENTS; ++x)
     {
         if (spellInfo->Reagent[x] <= 0)
             continue;
