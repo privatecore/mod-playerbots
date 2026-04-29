@@ -20,6 +20,52 @@ struct ItemTemplate;
 
 enum EquipmentSlots : uint32;
 
+static constexpr uint32 CLASS_WEAPON_PROFICIENCY[MAX_CLASSES] = {
+    // 0  CLASS_NONE
+    0,
+    // 1  CLASS_WARRIOR
+    (1 << ITEM_SUBCLASS_WEAPON_AXE) | (1 << ITEM_SUBCLASS_WEAPON_AXE2) | (1 << ITEM_SUBCLASS_WEAPON_BOW) |
+    (1 << ITEM_SUBCLASS_WEAPON_CROSSBOW) | (1 << ITEM_SUBCLASS_WEAPON_DAGGER) | (1 << ITEM_SUBCLASS_WEAPON_FIST) |
+    (1 << ITEM_SUBCLASS_WEAPON_GUN) | (1 << ITEM_SUBCLASS_WEAPON_MACE) | (1 << ITEM_SUBCLASS_WEAPON_MACE2) |
+    (1 << ITEM_SUBCLASS_WEAPON_POLEARM) | (1 << ITEM_SUBCLASS_WEAPON_STAFF) | (1 << ITEM_SUBCLASS_WEAPON_SWORD) |
+    (1 << ITEM_SUBCLASS_WEAPON_SWORD2) | (1 << ITEM_SUBCLASS_WEAPON_THROWN),
+    // 2  CLASS_PALADIN
+    (1 << ITEM_SUBCLASS_WEAPON_AXE) | (1 << ITEM_SUBCLASS_WEAPON_AXE2) | (1 << ITEM_SUBCLASS_WEAPON_MACE) |
+    (1 << ITEM_SUBCLASS_WEAPON_MACE2) | (1 << ITEM_SUBCLASS_WEAPON_POLEARM) | (1 << ITEM_SUBCLASS_WEAPON_SWORD) |
+    (1 << ITEM_SUBCLASS_WEAPON_SWORD2),
+    // 3  CLASS_HUNTER
+    (1 << ITEM_SUBCLASS_WEAPON_AXE) | (1 << ITEM_SUBCLASS_WEAPON_AXE2) | (1 << ITEM_SUBCLASS_WEAPON_BOW) |
+    (1 << ITEM_SUBCLASS_WEAPON_CROSSBOW) | (1 << ITEM_SUBCLASS_WEAPON_DAGGER) | (1 << ITEM_SUBCLASS_WEAPON_FIST) |
+    (1 << ITEM_SUBCLASS_WEAPON_GUN) | (1 << ITEM_SUBCLASS_WEAPON_POLEARM) | (1 << ITEM_SUBCLASS_WEAPON_STAFF) |
+    (1 << ITEM_SUBCLASS_WEAPON_SWORD) | (1 << ITEM_SUBCLASS_WEAPON_SWORD2),
+    // 4  CLASS_ROGUE
+    (1 << ITEM_SUBCLASS_WEAPON_AXE) | (1 << ITEM_SUBCLASS_WEAPON_BOW) | (1 << ITEM_SUBCLASS_WEAPON_CROSSBOW) |
+    (1 << ITEM_SUBCLASS_WEAPON_DAGGER) | (1 << ITEM_SUBCLASS_WEAPON_FIST) | (1 << ITEM_SUBCLASS_WEAPON_GUN) |
+    (1 << ITEM_SUBCLASS_WEAPON_MACE) | (1 << ITEM_SUBCLASS_WEAPON_SWORD) | (1 << ITEM_SUBCLASS_WEAPON_THROWN),
+    // 5  CLASS_PRIEST
+    (1 << ITEM_SUBCLASS_WEAPON_DAGGER) | (1 << ITEM_SUBCLASS_WEAPON_MACE) | (1 << ITEM_SUBCLASS_WEAPON_STAFF) |
+    (1 << ITEM_SUBCLASS_WEAPON_WAND),
+    // 6  CLASS_DEATH_KNIGHT
+    (1 << ITEM_SUBCLASS_WEAPON_AXE) | (1 << ITEM_SUBCLASS_WEAPON_AXE2) | (1 << ITEM_SUBCLASS_WEAPON_MACE) |
+    (1 << ITEM_SUBCLASS_WEAPON_MACE2) | (1 << ITEM_SUBCLASS_WEAPON_POLEARM) | (1 << ITEM_SUBCLASS_WEAPON_SWORD) |
+    (1 << ITEM_SUBCLASS_WEAPON_SWORD2),
+    // 7  CLASS_SHAMAN
+    (1 << ITEM_SUBCLASS_WEAPON_AXE) | (1 << ITEM_SUBCLASS_WEAPON_AXE2) | (1 << ITEM_SUBCLASS_WEAPON_DAGGER) |
+    (1 << ITEM_SUBCLASS_WEAPON_FIST) | (1 << ITEM_SUBCLASS_WEAPON_MACE) | (1 << ITEM_SUBCLASS_WEAPON_MACE2) |
+    (1 << ITEM_SUBCLASS_WEAPON_STAFF),
+    // 8  CLASS_MAGE
+    (1 << ITEM_SUBCLASS_WEAPON_DAGGER) | (1 << ITEM_SUBCLASS_WEAPON_STAFF) | (1 << ITEM_SUBCLASS_WEAPON_SWORD) |
+    (1 << ITEM_SUBCLASS_WEAPON_WAND),
+    // 9  CLASS_WARLOCK
+    (1 << ITEM_SUBCLASS_WEAPON_DAGGER) | (1 << ITEM_SUBCLASS_WEAPON_STAFF) | (1 << ITEM_SUBCLASS_WEAPON_SWORD) |
+    (1 << ITEM_SUBCLASS_WEAPON_WAND),
+    // 10 CLASS_UNK
+    0,
+    // 11 CLASS_DRUID
+    (1 << ITEM_SUBCLASS_WEAPON_DAGGER) | (1 << ITEM_SUBCLASS_WEAPON_MACE) | (1 << ITEM_SUBCLASS_WEAPON_MACE2) |
+    (1 << ITEM_SUBCLASS_WEAPON_POLEARM) | (1 << ITEM_SUBCLASS_WEAPON_STAFF),
+};
+
 enum RandomItemType
 {
     RANDOM_ITEM_GUILD_TASK,
@@ -65,9 +111,7 @@ struct ItemInfoEntry
         : minLevel(0), source(0), sourceId(0), team(0), repRank(0), repFaction(0), quality(0), slot(0), itemId(0)
     {
         for (uint8 i = 1; i <= MAX_STAT_SCALES; ++i)
-        {
             weights[i] = 0;
-        }
     }
 
     std::map<uint32, uint32> weights;
@@ -96,7 +140,7 @@ struct WeightScale
 class RandomItemPredicate
 {
 public:
-    virtual ~RandomItemPredicate(){};
+    virtual ~RandomItemPredicate() {};
 
     virtual bool Apply(ItemTemplate const* proto) = 0;
 };
@@ -172,7 +216,7 @@ public:
 
     bool CanEquipArmor(uint8 clazz, uint32 level, ItemTemplate const* proto);
     bool ShouldEquipArmorForSpec(uint8 playerclass, uint8 spec, ItemTemplate const* proto);
-    bool CanEquipWeapon(uint8 clazz, ItemTemplate const* proto);
+    bool CanEquipWeapon(ItemTemplate const* proto, uint8 clazz);
     bool ShouldEquipWeaponForSpec(uint8 playerclass, uint8 spec, ItemTemplate const* proto);
 
     uint32 GetQuestIdForItem(uint32 itemId);
@@ -204,9 +248,7 @@ private:
     bool CheckItemStats(uint8 clazz, uint8 sp, uint8 ap, uint8 tank);
 
 private:
-    // Implemented in RandomItemMgr.cpp
     RandomItemMgr();
-    // Implemented in RandomItemMgr.cpp
     ~RandomItemMgr();
 
     RandomItemMgr(const RandomItemMgr&) = delete;

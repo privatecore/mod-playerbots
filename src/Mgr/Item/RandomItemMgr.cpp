@@ -793,59 +793,18 @@ bool RandomItemMgr::CanEquipArmor(uint8 clazz, uint32 level, ItemTemplate const*
     return CheckItemStats(clazz, sp, ap, tank);
 }
 
-bool RandomItemMgr::CanEquipWeapon(uint8 clazz, ItemTemplate const* proto)
+bool RandomItemMgr::CanEquipWeapon(ItemTemplate const* proto, uint8 clazz)
 {
-    if (!proto || proto->SubClass >= MAX_ITEM_SUBCLASS_WEAPON)
+    if (!proto)
         return false;
 
-    switch (clazz)
-    {
-        case CLASS_WARRIOR:
-            return proto->SubClass == ITEM_SUBCLASS_WEAPON_AXE || proto->SubClass == ITEM_SUBCLASS_WEAPON_AXE2 ||
-                   proto->SubClass == ITEM_SUBCLASS_WEAPON_BOW || proto->SubClass == ITEM_SUBCLASS_WEAPON_CROSSBOW ||
-                   proto->SubClass == ITEM_SUBCLASS_WEAPON_DAGGER || proto->SubClass == ITEM_SUBCLASS_WEAPON_FIST ||
-                   proto->SubClass == ITEM_SUBCLASS_WEAPON_GUN || proto->SubClass == ITEM_SUBCLASS_WEAPON_MACE ||
-                   proto->SubClass == ITEM_SUBCLASS_WEAPON_MACE2 || proto->SubClass == ITEM_SUBCLASS_WEAPON_POLEARM ||
-                   proto->SubClass == ITEM_SUBCLASS_WEAPON_STAFF || proto->SubClass == ITEM_SUBCLASS_WEAPON_SWORD ||
-                   proto->SubClass == ITEM_SUBCLASS_WEAPON_SWORD2 || proto->SubClass == ITEM_SUBCLASS_WEAPON_THROWN;
-        case CLASS_PALADIN:
-        case CLASS_DEATH_KNIGHT:
-            return proto->SubClass == ITEM_SUBCLASS_WEAPON_AXE || proto->SubClass == ITEM_SUBCLASS_WEAPON_AXE2 ||
-                   proto->SubClass == ITEM_SUBCLASS_WEAPON_MACE || proto->SubClass == ITEM_SUBCLASS_WEAPON_MACE2 ||
-                   proto->SubClass == ITEM_SUBCLASS_WEAPON_POLEARM || proto->SubClass == ITEM_SUBCLASS_WEAPON_SWORD ||
-                   proto->SubClass == ITEM_SUBCLASS_WEAPON_SWORD2;
-        case CLASS_HUNTER:
-            return proto->SubClass == ITEM_SUBCLASS_WEAPON_AXE || proto->SubClass == ITEM_SUBCLASS_WEAPON_AXE2 ||
-                   proto->SubClass == ITEM_SUBCLASS_WEAPON_BOW || proto->SubClass == ITEM_SUBCLASS_WEAPON_CROSSBOW ||
-                   proto->SubClass == ITEM_SUBCLASS_WEAPON_DAGGER || proto->SubClass == ITEM_SUBCLASS_WEAPON_FIST ||
-                   proto->SubClass == ITEM_SUBCLASS_WEAPON_GUN || proto->SubClass == ITEM_SUBCLASS_WEAPON_POLEARM ||
-                   proto->SubClass == ITEM_SUBCLASS_WEAPON_STAFF || proto->SubClass == ITEM_SUBCLASS_WEAPON_SWORD ||
-                   proto->SubClass == ITEM_SUBCLASS_WEAPON_SWORD2;
-        case CLASS_ROGUE:
-            return proto->SubClass == ITEM_SUBCLASS_WEAPON_AXE || proto->SubClass == ITEM_SUBCLASS_WEAPON_BOW ||
-                   proto->SubClass == ITEM_SUBCLASS_WEAPON_CROSSBOW || proto->SubClass == ITEM_SUBCLASS_WEAPON_DAGGER ||
-                   proto->SubClass == ITEM_SUBCLASS_WEAPON_FIST || proto->SubClass == ITEM_SUBCLASS_WEAPON_GUN ||
-                   proto->SubClass == ITEM_SUBCLASS_WEAPON_MACE || proto->SubClass == ITEM_SUBCLASS_WEAPON_SWORD ||
-                   proto->SubClass == ITEM_SUBCLASS_WEAPON_THROWN;
-        case CLASS_PRIEST:
-            return proto->SubClass == ITEM_SUBCLASS_WEAPON_DAGGER || proto->SubClass == ITEM_SUBCLASS_WEAPON_MACE ||
-                   proto->SubClass == ITEM_SUBCLASS_WEAPON_STAFF || proto->SubClass == ITEM_SUBCLASS_WEAPON_WAND;
-        case CLASS_SHAMAN:
-            return proto->SubClass == ITEM_SUBCLASS_WEAPON_AXE || proto->SubClass == ITEM_SUBCLASS_WEAPON_AXE2 ||
-                   proto->SubClass == ITEM_SUBCLASS_WEAPON_DAGGER || proto->SubClass == ITEM_SUBCLASS_WEAPON_FIST ||
-                   proto->SubClass == ITEM_SUBCLASS_WEAPON_MACE || proto->SubClass == ITEM_SUBCLASS_WEAPON_MACE2 ||
-                   proto->SubClass == ITEM_SUBCLASS_WEAPON_STAFF;
-        case CLASS_MAGE:
-        case CLASS_WARLOCK:
-            return proto->SubClass == ITEM_SUBCLASS_WEAPON_DAGGER || proto->SubClass == ITEM_SUBCLASS_WEAPON_STAFF ||
-                   proto->SubClass == ITEM_SUBCLASS_WEAPON_SWORD || proto->SubClass == ITEM_SUBCLASS_WEAPON_WAND;
-        case CLASS_DRUID:
-            return proto->SubClass == ITEM_SUBCLASS_WEAPON_DAGGER || proto->SubClass == ITEM_SUBCLASS_WEAPON_MACE ||
-                   proto->SubClass == ITEM_SUBCLASS_WEAPON_MACE2 || proto->SubClass == ITEM_SUBCLASS_WEAPON_POLEARM ||
-                   proto->SubClass == ITEM_SUBCLASS_WEAPON_STAFF;
-        default:
-            return false;
-    }
+    if (proto->Class != ITEM_CLASS_WEAPON || proto->SubClass >= MAX_ITEM_SUBCLASS_WEAPON)
+        return false;
+
+    if (clazz >= MAX_CLASSES)
+        return false;
+
+    return (CLASS_WEAPON_PROFICIENCY[clazz] >> proto->SubClass) & 1;
 }
 
 void RandomItemMgr::BuildCacheItemInfo()
@@ -2180,7 +2139,7 @@ void RandomItemMgr::BuildCacheEquip()
                                 !CanEquipArmor(key.clazz, key.level, proto))
                                 continue;
 
-                            if (proto->Class == ITEM_CLASS_WEAPON && !CanEquipWeapon(key.clazz, proto))
+                            if (proto->Class == ITEM_CLASS_WEAPON && !CanEquipWeapon(proto, key.clazz))
                                 continue;
 
                             if (slot == EQUIPMENT_SLOT_OFFHAND && key.clazz == CLASS_ROGUE &&
@@ -2305,7 +2264,7 @@ RandomItemList RandomItemMgr::Query(uint32 level, uint8 clazz, uint8 slot, uint3
             !CanEquipArmor(key.clazz, key.level, proto))
             continue;
 
-        if (proto->Class == ITEM_CLASS_WEAPON && !CanEquipWeapon(key.clazz, proto))
+        if (proto->Class == ITEM_CLASS_WEAPON && !CanEquipWeapon(proto, key.clazz))
             continue;
 
         if (slot == EQUIPMENT_SLOT_OFFHAND && key.clazz == CLASS_ROGUE && proto->Class != ITEM_CLASS_WEAPON)
