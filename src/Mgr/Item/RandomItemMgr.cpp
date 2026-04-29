@@ -80,71 +80,104 @@ private:
 
 RandomItemMgr::RandomItemMgr()
 {
+    InitPredicates();
+    InitViableSlots();
+    InitWeightLinks();
+}
+
+RandomItemMgr::~RandomItemMgr()
+{
+    for (auto& pair : predicates)
+        delete pair.second;
+
+    predicates.clear();
+}
+
+void RandomItemMgr::InitPredicates()
+{
     predicates[RANDOM_ITEM_GUILD_TASK] = new RandomItemGuildTaskPredicate();
     predicates[RANDOM_ITEM_GUILD_TASK_REWARD_EQUIP_GREEN] = new RandomItemGuildTaskRewardPredicate(true, false);
     predicates[RANDOM_ITEM_GUILD_TASK_REWARD_EQUIP_BLUE] = new RandomItemGuildTaskRewardPredicate(true, true);
     predicates[RANDOM_ITEM_GUILD_TASK_REWARD_TRADE] = new RandomItemGuildTaskRewardPredicate(false, false);
     predicates[RANDOM_ITEM_GUILD_TASK_REWARD_TRADE_RARE] = new RandomItemGuildTaskRewardPredicate(false, true);
+}
 
-    viableSlots[EQUIPMENT_SLOT_HEAD].insert(INVTYPE_HEAD);
-    viableSlots[EQUIPMENT_SLOT_NECK].insert(INVTYPE_NECK);
-    viableSlots[EQUIPMENT_SLOT_SHOULDERS].insert(INVTYPE_SHOULDERS);
-    viableSlots[EQUIPMENT_SLOT_BODY].insert(INVTYPE_BODY);
-    viableSlots[EQUIPMENT_SLOT_CHEST].insert(INVTYPE_CHEST);
-    viableSlots[EQUIPMENT_SLOT_CHEST].insert(INVTYPE_ROBE);
-    viableSlots[EQUIPMENT_SLOT_WAIST].insert(INVTYPE_WAIST);
-    viableSlots[EQUIPMENT_SLOT_LEGS].insert(INVTYPE_LEGS);
-    viableSlots[EQUIPMENT_SLOT_FEET].insert(INVTYPE_FEET);
-    viableSlots[EQUIPMENT_SLOT_WRISTS].insert(INVTYPE_WRISTS);
-    viableSlots[EQUIPMENT_SLOT_HANDS].insert(INVTYPE_HANDS);
-    viableSlots[EQUIPMENT_SLOT_FINGER1].insert(INVTYPE_FINGER);
-    viableSlots[EQUIPMENT_SLOT_FINGER2].insert(INVTYPE_FINGER);
-    viableSlots[EQUIPMENT_SLOT_TRINKET1].insert(INVTYPE_TRINKET);
-    viableSlots[EQUIPMENT_SLOT_TRINKET2].insert(INVTYPE_TRINKET);
-    viableSlots[EQUIPMENT_SLOT_MAINHAND].insert(INVTYPE_WEAPON);
-    viableSlots[EQUIPMENT_SLOT_MAINHAND].insert(INVTYPE_2HWEAPON);
-    viableSlots[EQUIPMENT_SLOT_MAINHAND].insert(INVTYPE_WEAPONMAINHAND);
-    viableSlots[EQUIPMENT_SLOT_OFFHAND].insert(INVTYPE_WEAPON);
-    viableSlots[EQUIPMENT_SLOT_OFFHAND].insert(INVTYPE_2HWEAPON);
-    viableSlots[EQUIPMENT_SLOT_OFFHAND].insert(INVTYPE_SHIELD);
-    viableSlots[EQUIPMENT_SLOT_OFFHAND].insert(INVTYPE_WEAPONMAINHAND);
-    viableSlots[EQUIPMENT_SLOT_OFFHAND].insert(INVTYPE_HOLDABLE);
-    viableSlots[EQUIPMENT_SLOT_RANGED].insert(INVTYPE_RANGED);
-    viableSlots[EQUIPMENT_SLOT_RANGED].insert(INVTYPE_THROWN);
-    viableSlots[EQUIPMENT_SLOT_RANGED].insert(INVTYPE_RANGEDRIGHT);
-    viableSlots[EQUIPMENT_SLOT_RANGED].insert(INVTYPE_RELIC);
-    viableSlots[EQUIPMENT_SLOT_TABARD].insert(INVTYPE_TABARD);
-    viableSlots[EQUIPMENT_SLOT_BACK].insert(INVTYPE_CLOAK);
+void RandomItemMgr::InitViableSlots()
+{
+    auto addSlot = [&](EquipmentSlots slot, InventoryType invType)
+    {
+        viableSlots[slot].insert(invType);
+        inventoryTypeToSlots[invType].push_back(slot);
+    };
 
+    addSlot(EQUIPMENT_SLOT_HEAD,        INVTYPE_HEAD);
+    addSlot(EQUIPMENT_SLOT_NECK,        INVTYPE_NECK);
+    addSlot(EQUIPMENT_SLOT_SHOULDERS,   INVTYPE_SHOULDERS);
+    addSlot(EQUIPMENT_SLOT_BODY,        INVTYPE_BODY);
+    addSlot(EQUIPMENT_SLOT_CHEST,       INVTYPE_CHEST);
+    addSlot(EQUIPMENT_SLOT_CHEST,       INVTYPE_ROBE);
+    addSlot(EQUIPMENT_SLOT_WAIST,       INVTYPE_WAIST);
+    addSlot(EQUIPMENT_SLOT_LEGS,        INVTYPE_LEGS);
+    addSlot(EQUIPMENT_SLOT_FEET,        INVTYPE_FEET);
+    addSlot(EQUIPMENT_SLOT_WRISTS,      INVTYPE_WRISTS);
+    addSlot(EQUIPMENT_SLOT_HANDS,       INVTYPE_HANDS);
+    addSlot(EQUIPMENT_SLOT_FINGER1,     INVTYPE_FINGER);
+    addSlot(EQUIPMENT_SLOT_FINGER2,     INVTYPE_FINGER);
+    addSlot(EQUIPMENT_SLOT_TRINKET1,    INVTYPE_TRINKET);
+    addSlot(EQUIPMENT_SLOT_TRINKET2,    INVTYPE_TRINKET);
+
+    addSlot(EQUIPMENT_SLOT_MAINHAND,    INVTYPE_WEAPON);
+    addSlot(EQUIPMENT_SLOT_MAINHAND,    INVTYPE_2HWEAPON);
+    addSlot(EQUIPMENT_SLOT_MAINHAND,    INVTYPE_WEAPONMAINHAND);
+
+    addSlot(EQUIPMENT_SLOT_OFFHAND,     INVTYPE_WEAPON);
+    addSlot(EQUIPMENT_SLOT_OFFHAND,     INVTYPE_WEAPONOFFHAND);
+    addSlot(EQUIPMENT_SLOT_OFFHAND,     INVTYPE_SHIELD);
+    addSlot(EQUIPMENT_SLOT_OFFHAND,     INVTYPE_HOLDABLE);
+
+    addSlot(EQUIPMENT_SLOT_RANGED,      INVTYPE_RANGED);
+    addSlot(EQUIPMENT_SLOT_RANGED,      INVTYPE_THROWN);
+    addSlot(EQUIPMENT_SLOT_RANGED,      INVTYPE_RANGEDRIGHT);
+    addSlot(EQUIPMENT_SLOT_RANGED,      INVTYPE_RELIC);
+
+    addSlot(EQUIPMENT_SLOT_TABARD,      INVTYPE_TABARD);
+    addSlot(EQUIPMENT_SLOT_BACK,        INVTYPE_CLOAK);
+}
+
+void RandomItemMgr::InitWeightLinks()
+{
+    // primary stats
     weightStatLink["sta"] = ITEM_MOD_STAMINA;
     weightStatLink["str"] = ITEM_MOD_STRENGTH;
     weightStatLink["agi"] = ITEM_MOD_AGILITY;
     weightStatLink["int"] = ITEM_MOD_INTELLECT;
     weightStatLink["spi"] = ITEM_MOD_SPIRIT;
 
+    // offensive stats
     weightStatLink["splpwr"] = ITEM_MOD_SPELL_POWER;
     weightStatLink["atkpwr"] = ITEM_MOD_ATTACK_POWER;
-
     weightStatLink["exprtng"] = ITEM_MOD_EXPERTISE_RATING;
     weightStatLink["critstrkrtng"] = ITEM_MOD_CRIT_RATING;
     weightStatLink["hitrtng"] = ITEM_MOD_HIT_RATING;
     weightStatLink["hastertng"] = ITEM_MOD_HASTE_RATING;
     weightStatLink["armorpenrtng"] = ITEM_MOD_ARMOR_PENETRATION_RATING;
 
+    // defensive stats
     weightStatLink["defrtng"] = ITEM_MOD_DEFENSE_SKILL_RATING;
     weightStatLink["dodgertng"] = ITEM_MOD_DODGE_RATING;
     weightStatLink["block"] = ITEM_MOD_BLOCK_VALUE;
     weightStatLink["blockrtng"] = ITEM_MOD_BLOCK_RATING;
     weightStatLink["parryrtng"] = ITEM_MOD_PARRY_RATING;
 
+    // misc
     weightStatLink["manargn"] = ITEM_MOD_MANA_REGENERATION;
 
+    // combat rating links
     weightRatingLink["exprtng"] = CR_EXPERTISE;
     weightRatingLink["critstrkrtng"] = CR_CRIT_MELEE;
     weightRatingLink["hitrtng"] = CR_HIT_MELEE;
     weightRatingLink["hastertng"] = CR_HASTE_MELEE;
     weightRatingLink["armorpenrtng"] = CR_ARMOR_PENETRATION;
-
     weightRatingLink["defrtng"] = CR_DEFENSE_SKILL;
     weightRatingLink["dodgertng"] = CR_DODGE;
     weightRatingLink["blockrtng"] = CR_BLOCK;
@@ -171,14 +204,6 @@ void RandomItemMgr::InitAfterAhBot()
     //     BuildCacheRarity();
 }
 
-RandomItemMgr::~RandomItemMgr()
-{
-    for (std::map<RandomItemType, RandomItemPredicate*>::iterator i = predicates.begin(); i != predicates.end(); ++i)
-        delete i->second;
-
-    predicates.clear();
-}
-
 bool RandomItemMgr::HandleConsoleCommand(ChatHandler* /* handler */, char const* args)
 {
     if (!args || !*args)
@@ -188,6 +213,21 @@ bool RandomItemMgr::HandleConsoleCommand(ChatHandler* /* handler */, char const*
     }
 
     return false;
+}
+
+std::vector<uint8> RandomItemMgr::GetViableSlots(InventoryType type) const
+{
+    auto it = inventoryTypeToSlots.find(type);
+    if (it == inventoryTypeToSlots.end())
+        return {};
+
+    std::vector<uint8> result;
+    result.reserve(it->second.size());
+
+    for (EquipmentSlots slot : it->second)
+        result.push_back(static_cast<uint8>(slot));
+
+    return result;
 }
 
 RandomItemList RandomItemMgr::Query(uint32 level, RandomItemType type, RandomItemPredicate* predicate)
@@ -321,8 +361,8 @@ void RandomItemMgr::DebugCacheRandomItem()
 
             RandomItemList const& list = typeItr->second;
 
-            LOG_DEBUG("playerbots", "    Level {}..{} Type {} - {} random items cached",
-                      level * 10, level * 10 + 9, type, list.size());
+            LOG_DEBUG("playerbots", "    Level {}..{} Type {} - {} random items cached", level * 10, level * 10 + 9,
+                      type, list.size());
 
             for (uint32 const itemId : list)
             {
@@ -750,10 +790,14 @@ bool RandomItemMgr::ShouldEquipWeaponForSpec(uint8 playerclass, uint8 spec, Item
 
 bool RandomItemMgr::CanEquipArmor(ItemTemplate const* proto, uint8 clazz, uint32 level)
 {
-    if (!proto)
+    if (!proto || clazz >= MAX_CLASSES)
         return false;
 
     if (proto->Class != ITEM_CLASS_ARMOR || proto->SubClass >= MAX_ITEM_SUBCLASS_ARMOR)
+        return false;
+
+    // validate InventoryType maps to a real slot before anything else
+    if (GetViableSlots(static_cast<InventoryType>(proto->InventoryType)).empty())
         return false;
 
     // special case for tabard
@@ -772,7 +816,7 @@ bool RandomItemMgr::CanEquipArmor(ItemTemplate const* proto, uint8 clazz, uint32
             return level >= 40 ? ITEM_SUBCLASS_ARMOR_MAIL : ITEM_SUBCLASS_ARMOR_LEATHER;
         if (clazz == CLASS_DRUID || clazz == CLASS_ROGUE)
             return ITEM_SUBCLASS_ARMOR_LEATHER;
-        return ITEM_SUBCLASS_ARMOR_CLOTH;  // mage/warlock/priest
+        return ITEM_SUBCLASS_ARMOR_CLOTH; // mage/warlock/priest
     }();
 
     if (proto->InventoryType != INVTYPE_CLOAK && proto->SubClass != requiredSubClass)
@@ -800,16 +844,17 @@ bool RandomItemMgr::CanEquipArmor(ItemTemplate const* proto, uint8 clazz, uint32
 
 bool RandomItemMgr::CanEquipWeapon(ItemTemplate const* proto, uint8 clazz)
 {
-    if (!proto)
+    if (!proto || clazz >= MAX_CLASSES)
         return false;
 
     if (proto->Class != ITEM_CLASS_WEAPON || proto->SubClass >= MAX_ITEM_SUBCLASS_WEAPON)
         return false;
 
-    if (clazz >= MAX_CLASSES)
+    // validate InventoryType maps to a real slot before class proficiency check
+    if (GetViableSlots(static_cast<InventoryType>(proto->InventoryType)).empty())
         return false;
 
-    return (CLASS_WEAPON_PROFICIENCY[clazz] >> proto->SubClass) & 1;
+    return CLASS_WEAPON_PROFICIENCY[clazz] & (1u << proto->SubClass);
 }
 
 void RandomItemMgr::BuildCacheItemInfo()

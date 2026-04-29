@@ -227,6 +227,10 @@ public:
     static bool IsUsedBySkill(ItemTemplate const* proto, uint32 skillId);
 
 private:
+    void InitPredicates();
+    void InitViableSlots();
+    void InitWeightLinks();
+
     bool LoadCacheRandomItem();
     bool LoadCacheRarity();
 
@@ -242,10 +246,12 @@ private:
 
     void DebugCacheRandomItem();
 
-    bool CanEquipItem(BotEquipKey key, ItemTemplate const* proto);
-    bool CanEquipItemNew(ItemTemplate const* proto);
     void AddItemStats(uint32 mod, uint8& sp, uint8& ap, uint8& tank);
     bool CheckItemStats(uint8 clazz, uint8 sp, uint8 ap, uint8 tank);
+    bool CanEquipItem(BotEquipKey key, ItemTemplate const* proto);
+    bool CanEquipItemNew(ItemTemplate const* proto);
+
+    std::vector<uint8> GetViableSlots(InventoryType type) const;
 
 private:
     RandomItemMgr();
@@ -261,6 +267,7 @@ private:
     std::map<RandomItemType, RandomItemPredicate*> predicates;
     BotEquipCache equipCache;
     std::map<EquipmentSlots, std::set<InventoryType>> viableSlots;
+    std::map<InventoryType, std::vector<EquipmentSlots>> inventoryTypeToSlots;
     std::map<uint32, std::map<uint32, std::vector<uint32>>> ammoCache;
     std::map<uint32, std::map<uint32, std::vector<uint32>>> potionCache;
     std::map<uint32, std::map<uint32, std::vector<uint32>>> foodCache;
