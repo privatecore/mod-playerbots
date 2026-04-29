@@ -214,9 +214,9 @@ public:
     float GetItemRarity(uint32 itemId);
     std::vector<uint32> GetCachedEquipments(uint32 requiredLevel, uint32 inventoryType);
 
-    bool CanEquipArmor(uint8 clazz, uint32 level, ItemTemplate const* proto);
-    bool ShouldEquipArmorForSpec(uint8 playerclass, uint8 spec, ItemTemplate const* proto);
+    bool CanEquipArmor(ItemTemplate const* proto, uint8 clazz, uint32 level);
     bool CanEquipWeapon(ItemTemplate const* proto, uint8 clazz);
+    bool ShouldEquipArmorForSpec(uint8 playerclass, uint8 spec, ItemTemplate const* proto);
     bool ShouldEquipWeaponForSpec(uint8 playerclass, uint8 spec, ItemTemplate const* proto);
 
     uint32 GetQuestIdForItem(uint32 itemId);

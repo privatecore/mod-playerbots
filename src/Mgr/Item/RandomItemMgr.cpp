@@ -748,8 +748,15 @@ bool RandomItemMgr::ShouldEquipWeaponForSpec(uint8 playerclass, uint8 spec, Item
     return false;
 }
 
-bool RandomItemMgr::CanEquipArmor(uint8 clazz, uint32 level, ItemTemplate const* proto)
+bool RandomItemMgr::CanEquipArmor(ItemTemplate const* proto, uint8 clazz, uint32 level)
 {
+    if (!proto)
+        return false;
+
+    if (proto->Class != ITEM_CLASS_ARMOR || proto->SubClass >= MAX_ITEM_SUBCLASS_ARMOR)
+        return false;
+
+    // special case for tabard
     if (proto->InventoryType == INVTYPE_TABARD)
         return true;
 
@@ -757,30 +764,28 @@ bool RandomItemMgr::CanEquipArmor(uint8 clazz, uint32 level, ItemTemplate const*
         proto->SubClass == ITEM_SUBCLASS_ARMOR_SHIELD)
         return true;
 
-    if ((clazz == CLASS_WARRIOR || clazz == CLASS_PALADIN) && level >= 40)
+    uint32 const requiredSubClass = [&]() -> uint32
     {
-        if (proto->SubClass != ITEM_SUBCLASS_ARMOR_PLATE && proto->InventoryType != INVTYPE_CLOAK)
-            return false;
-    }
+        if (clazz == CLASS_WARRIOR || clazz == CLASS_PALADIN)
+            return level >= 40 ? ITEM_SUBCLASS_ARMOR_PLATE : ITEM_SUBCLASS_ARMOR_MAIL;
+        if (clazz == CLASS_HUNTER || clazz == CLASS_SHAMAN)
+            return level >= 40 ? ITEM_SUBCLASS_ARMOR_MAIL : ITEM_SUBCLASS_ARMOR_LEATHER;
+        if (clazz == CLASS_DRUID || clazz == CLASS_ROGUE)
+            return ITEM_SUBCLASS_ARMOR_LEATHER;
+        return ITEM_SUBCLASS_ARMOR_CLOTH;  // mage/warlock/priest
+    }();
 
-    if (((clazz == CLASS_WARRIOR || clazz == CLASS_PALADIN) && level < 40) ||
-        ((clazz == CLASS_HUNTER || clazz == CLASS_SHAMAN) && level >= 40))
-    {
-        if (proto->SubClass != ITEM_SUBCLASS_ARMOR_MAIL && proto->InventoryType != INVTYPE_CLOAK)
-            return false;
-    }
+    if (proto->InventoryType != INVTYPE_CLOAK && proto->SubClass != requiredSubClass)
+        return false;
 
-    if (((clazz == CLASS_HUNTER || clazz == CLASS_SHAMAN) && level < 40) ||
-        (clazz == CLASS_DRUID || clazz == CLASS_ROGUE))
-    {
-        if (proto->SubClass != ITEM_SUBCLASS_ARMOR_LEATHER && proto->InventoryType != INVTYPE_CLOAK)
-            return false;
-    }
-
+    // skip stats calculation for poor/normal items
     if (proto->Quality <= ITEM_QUALITY_NORMAL)
         return true;
 
-    uint8 sp = 0, ap = 0, tank = 0;
+    uint8 sp = 0;
+    uint8 ap = 0;
+    uint8 tank = 0;
+
     for (uint8 j = 0; j < MAX_ITEM_PROTO_STATS; ++j)
     {
         // for ItemStatValue != 0
@@ -2136,7 +2141,7 @@ void RandomItemMgr::BuildCacheEquip()
                                  slot == EQUIPMENT_SLOT_CHEST || slot == EQUIPMENT_SLOT_WAIST ||
                                  slot == EQUIPMENT_SLOT_LEGS || slot == EQUIPMENT_SLOT_FEET ||
                                  slot == EQUIPMENT_SLOT_WRISTS || slot == EQUIPMENT_SLOT_HANDS) &&
-                                !CanEquipArmor(key.clazz, key.level, proto))
+                                !CanEquipArmor(proto, key.clazz, key.level))
                                 continue;
 
                             if (proto->Class == ITEM_CLASS_WEAPON && !CanEquipWeapon(proto, key.clazz))
@@ -2261,7 +2266,7 @@ RandomItemList RandomItemMgr::Query(uint32 level, uint8 clazz, uint8 slot, uint3
             (slot == EQUIPMENT_SLOT_HEAD || slot == EQUIPMENT_SLOT_SHOULDERS || slot == EQUIPMENT_SLOT_CHEST ||
              slot == EQUIPMENT_SLOT_WAIST || slot == EQUIPMENT_SLOT_LEGS || slot == EQUIPMENT_SLOT_FEET ||
              slot == EQUIPMENT_SLOT_WRISTS || slot == EQUIPMENT_SLOT_HANDS) &&
-            !CanEquipArmor(key.clazz, key.level, proto))
+            !CanEquipArmor(proto, key.clazz, key.level))
             continue;
 
         if (proto->Class == ITEM_CLASS_WEAPON && !CanEquipWeapon(proto, key.clazz))
