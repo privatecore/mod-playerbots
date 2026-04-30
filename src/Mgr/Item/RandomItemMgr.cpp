@@ -104,44 +104,43 @@ void RandomItemMgr::InitPredicates()
 
 void RandomItemMgr::InitViableSlots()
 {
-    auto addSlot = [&](EquipmentSlots slot, InventoryType invType)
+    auto addSlot = [&](InventoryType type, EquipmentSlots slot)
     {
-        viableSlots[slot].insert(invType);
-        inventoryTypeToSlots[invType].push_back(slot);
+        viableSlots[type].push_back(slot);
     };
 
-    addSlot(EQUIPMENT_SLOT_HEAD,        INVTYPE_HEAD);
-    addSlot(EQUIPMENT_SLOT_NECK,        INVTYPE_NECK);
-    addSlot(EQUIPMENT_SLOT_SHOULDERS,   INVTYPE_SHOULDERS);
-    addSlot(EQUIPMENT_SLOT_BODY,        INVTYPE_BODY);
-    addSlot(EQUIPMENT_SLOT_CHEST,       INVTYPE_CHEST);
-    addSlot(EQUIPMENT_SLOT_CHEST,       INVTYPE_ROBE);
-    addSlot(EQUIPMENT_SLOT_WAIST,       INVTYPE_WAIST);
-    addSlot(EQUIPMENT_SLOT_LEGS,        INVTYPE_LEGS);
-    addSlot(EQUIPMENT_SLOT_FEET,        INVTYPE_FEET);
-    addSlot(EQUIPMENT_SLOT_WRISTS,      INVTYPE_WRISTS);
-    addSlot(EQUIPMENT_SLOT_HANDS,       INVTYPE_HANDS);
-    addSlot(EQUIPMENT_SLOT_FINGER1,     INVTYPE_FINGER);
-    addSlot(EQUIPMENT_SLOT_FINGER2,     INVTYPE_FINGER);
-    addSlot(EQUIPMENT_SLOT_TRINKET1,    INVTYPE_TRINKET);
-    addSlot(EQUIPMENT_SLOT_TRINKET2,    INVTYPE_TRINKET);
+    addSlot(INVTYPE_HEAD,           EQUIPMENT_SLOT_HEAD);
+    addSlot(INVTYPE_NECK,           EQUIPMENT_SLOT_NECK);
+    addSlot(INVTYPE_SHOULDERS,      EQUIPMENT_SLOT_SHOULDERS);
+    addSlot(INVTYPE_BODY,           EQUIPMENT_SLOT_BODY);
+    addSlot(INVTYPE_CHEST,          EQUIPMENT_SLOT_CHEST);
+    addSlot(INVTYPE_ROBE,           EQUIPMENT_SLOT_CHEST);
+    addSlot(INVTYPE_WAIST,          EQUIPMENT_SLOT_WAIST);
+    addSlot(INVTYPE_LEGS,           EQUIPMENT_SLOT_LEGS);
+    addSlot(INVTYPE_FEET,           EQUIPMENT_SLOT_FEET);
+    addSlot(INVTYPE_WRISTS,         EQUIPMENT_SLOT_WRISTS);
+    addSlot(INVTYPE_HANDS,          EQUIPMENT_SLOT_HANDS);
+    addSlot(INVTYPE_FINGER,         EQUIPMENT_SLOT_FINGER1);
+    addSlot(INVTYPE_FINGER,         EQUIPMENT_SLOT_FINGER2);
+    addSlot(INVTYPE_TRINKET,        EQUIPMENT_SLOT_TRINKET1);
+    addSlot(INVTYPE_TRINKET,        EQUIPMENT_SLOT_TRINKET2);
 
-    addSlot(EQUIPMENT_SLOT_MAINHAND,    INVTYPE_WEAPON);
-    addSlot(EQUIPMENT_SLOT_MAINHAND,    INVTYPE_2HWEAPON);
-    addSlot(EQUIPMENT_SLOT_MAINHAND,    INVTYPE_WEAPONMAINHAND);
+    addSlot(INVTYPE_WEAPON,         EQUIPMENT_SLOT_MAINHAND);
+    addSlot(INVTYPE_2HWEAPON,       EQUIPMENT_SLOT_MAINHAND);
+    addSlot(INVTYPE_WEAPONMAINHAND, EQUIPMENT_SLOT_MAINHAND);
 
-    addSlot(EQUIPMENT_SLOT_OFFHAND,     INVTYPE_WEAPON);
-    addSlot(EQUIPMENT_SLOT_OFFHAND,     INVTYPE_WEAPONOFFHAND);
-    addSlot(EQUIPMENT_SLOT_OFFHAND,     INVTYPE_SHIELD);
-    addSlot(EQUIPMENT_SLOT_OFFHAND,     INVTYPE_HOLDABLE);
+    addSlot(INVTYPE_WEAPON,         EQUIPMENT_SLOT_OFFHAND);
+    addSlot(INVTYPE_WEAPONOFFHAND,  EQUIPMENT_SLOT_OFFHAND);
+    addSlot(INVTYPE_SHIELD,         EQUIPMENT_SLOT_OFFHAND);
+    addSlot(INVTYPE_HOLDABLE,       EQUIPMENT_SLOT_OFFHAND);
 
-    addSlot(EQUIPMENT_SLOT_RANGED,      INVTYPE_RANGED);
-    addSlot(EQUIPMENT_SLOT_RANGED,      INVTYPE_THROWN);
-    addSlot(EQUIPMENT_SLOT_RANGED,      INVTYPE_RANGEDRIGHT);
-    addSlot(EQUIPMENT_SLOT_RANGED,      INVTYPE_RELIC);
+    addSlot(INVTYPE_RANGED,         EQUIPMENT_SLOT_RANGED);
+    addSlot(INVTYPE_THROWN,         EQUIPMENT_SLOT_RANGED);
+    addSlot(INVTYPE_RANGEDRIGHT,    EQUIPMENT_SLOT_RANGED);
+    addSlot(INVTYPE_RELIC,          EQUIPMENT_SLOT_RANGED);
 
-    addSlot(EQUIPMENT_SLOT_TABARD,      INVTYPE_TABARD);
-    addSlot(EQUIPMENT_SLOT_BACK,        INVTYPE_CLOAK);
+    addSlot(INVTYPE_TABARD,         EQUIPMENT_SLOT_TABARD);
+    addSlot(INVTYPE_CLOAK,          EQUIPMENT_SLOT_BACK);
 }
 
 void RandomItemMgr::InitWeightLinks()
@@ -215,19 +214,10 @@ bool RandomItemMgr::HandleConsoleCommand(ChatHandler* /* handler */, char const*
     return false;
 }
 
-std::vector<uint8> RandomItemMgr::GetViableSlots(InventoryType type) const
+std::vector<EquipmentSlots> const* RandomItemMgr::GetViableSlots(InventoryType type) const
 {
-    auto it = inventoryTypeToSlots.find(type);
-    if (it == inventoryTypeToSlots.end())
-        return {};
-
-    std::vector<uint8> result;
-    result.reserve(it->second.size());
-
-    for (EquipmentSlots slot : it->second)
-        result.push_back(static_cast<uint8>(slot));
-
-    return result;
+    auto it = viableSlots.find(type);
+    return it != viableSlots.end() ? &it->second : nullptr;
 }
 
 RandomItemList RandomItemMgr::Query(uint32 level, RandomItemType type, RandomItemPredicate* predicate)
@@ -385,57 +375,55 @@ uint32 RandomItemMgr::GetRandomItem(uint32 level, RandomItemType type, RandomIte
     return Acore::Containers::SelectRandomContainerElement(list);
 }
 
-bool RandomItemMgr::CanEquipItem(BotEquipKey key, ItemTemplate const* proto)
+bool RandomItemMgr::CanEquipItem(ItemTemplate const* proto, uint8 slot, uint32 level, uint32 quality)
 {
-    if (proto->Duration & 0x80000000)
+    if (!proto)
         return false;
 
-    if (proto->Quality != key.quality)
+    if ((proto->RequiredLevel && proto->RequiredLevel > level) || proto->Quality != quality)
+        return false;
+
+    if (proto->Duration & 0x80000000)
         return false;
 
     if (proto->Bonding == BIND_QUEST_ITEM || proto->Bonding == BIND_WHEN_USE)
         return false;
 
+    // special case for containers - skip equipment slot check
     if (proto->Class == ITEM_CLASS_CONTAINER)
         return true;
 
-    std::set<InventoryType> slots = viableSlots[(EquipmentSlots)key.slot];
-    if (slots.find((InventoryType)proto->InventoryType) == slots.end())
+    auto const* slots = GetViableSlots(static_cast<InventoryType>(proto->InventoryType));
+    if (!slots)
         return false;
 
-    uint32 requiredLevel = proto->RequiredLevel;
-    if (!requiredLevel)
+    if (std::ranges::find(*slots, static_cast<EquipmentSlots>(slot)) == slots->end())
+        return false;
+
+    if (proto->Quality > ITEM_QUALITY_NORMAL)
     {
-        requiredLevel = GetMinLevelFromCache(proto->ItemId);
+        uint32 requiredLevel = proto->RequiredLevel;
+        if (!requiredLevel)
+            requiredLevel = GetMinLevelFromCache(proto->ItemId);
+
+        if (!requiredLevel)
+            requiredLevel = level;
+
+        uint32 delta = 2;
+        if (level < 15)
+            delta = 15;
+        else if (level < 40)
+            delta = 10;
+        else if (level < 60)
+            delta = 6;
+        else
+            delta = 9;
+
+        // junk (poor/normal) - take anything that fits the slot; real gear should
+        // match the level relevance window
+        if (requiredLevel > level || (level >= delta && requiredLevel < level - delta))
+            return false;
     }
-
-    if (!requiredLevel)
-        requiredLevel = key.level;
-
-    uint32 level = key.level;
-
-    uint32 delta = 2;
-    if (level < 15)
-        delta = 15;
-    else if (level < 40)
-        delta = 10;  // urand(5, 10);
-    else if (level < 60)
-        delta = 6;  // urand(3, 7);
-    else if (level < 70)
-        delta = 9;  // urand(2, 5);
-    else if (level < 80)
-        delta = 9;  // urand(2, 4);
-    else if (level == 80)
-        delta = 9;  // urand(2, 4);
-
-    if (key.quality > ITEM_QUALITY_NORMAL && (requiredLevel > level || requiredLevel < level - delta))
-        return false;
-
-    // for (uint32 gap = 60; gap <= 80; gap += 10)
-    // {
-    //     if (level > gap && requiredLevel <= gap)
-    //         return false;
-    // }
 
     return true;
 }
@@ -451,16 +439,7 @@ bool RandomItemMgr::CanEquipItemNew(ItemTemplate const* proto)
     if (proto->Class == ITEM_CLASS_CONTAINER)
         return false;
 
-    bool properSlot = false;
-    for (std::map<EquipmentSlots, std::set<InventoryType> >::iterator i = viableSlots.begin(); i != viableSlots.end();
-         ++i)
-    {
-        std::set<InventoryType> const& slots = viableSlots[(EquipmentSlots)i->first];
-        if (slots.find((InventoryType)proto->InventoryType) != slots.end())
-            properSlot = true;
-    }
-
-    return properSlot;
+    return GetViableSlots(static_cast<InventoryType>(proto->InventoryType)) != nullptr;
 }
 
 void RandomItemMgr::AddItemStats(uint32 mod, uint8& sp, uint8& ap, uint8& tank)
@@ -624,18 +603,13 @@ bool RandomItemMgr::ShouldEquipWeaponForSpec(uint8 playerclass, uint8 spec, Item
     EquipmentSlots slot_mh = EQUIPMENT_SLOT_START;
     EquipmentSlots slot_oh = EQUIPMENT_SLOT_START;
     EquipmentSlots slot_rh = EQUIPMENT_SLOT_START;
-    for (std::map<EquipmentSlots, std::set<InventoryType> >::iterator i = viableSlots.begin(); i != viableSlots.end();
-         ++i)
+    if (auto const* slots = GetViableSlots(static_cast<InventoryType>(proto->InventoryType)))
     {
-        std::set<InventoryType> slots = viableSlots[(EquipmentSlots)i->first];
-        if (slots.find((InventoryType)proto->InventoryType) != slots.end())
+        for (EquipmentSlots slot : *slots)
         {
-            if (i->first == EQUIPMENT_SLOT_MAINHAND)
-                slot_mh = i->first;
-            if (i->first == EQUIPMENT_SLOT_OFFHAND)
-                slot_oh = i->first;
-            if (i->first == EQUIPMENT_SLOT_RANGED)
-                slot_rh = i->first;
+            if (slot == EQUIPMENT_SLOT_MAINHAND) slot_mh = slot;
+            if (slot == EQUIPMENT_SLOT_OFFHAND)  slot_oh = slot;
+            if (slot == EQUIPMENT_SLOT_RANGED)   slot_rh = slot;
         }
     }
 
@@ -797,7 +771,7 @@ bool RandomItemMgr::CanEquipArmor(ItemTemplate const* proto, uint8 clazz, uint32
         return false;
 
     // validate InventoryType maps to a real slot before anything else
-    if (GetViableSlots(static_cast<InventoryType>(proto->InventoryType)).empty())
+    if (!GetViableSlots(static_cast<InventoryType>(proto->InventoryType)))
         return false;
 
     // special case for tabard
@@ -851,7 +825,7 @@ bool RandomItemMgr::CanEquipWeapon(ItemTemplate const* proto, uint8 clazz)
         return false;
 
     // validate InventoryType maps to a real slot before class proficiency check
-    if (GetViableSlots(static_cast<InventoryType>(proto->InventoryType)).empty())
+    if (!GetViableSlots(static_cast<InventoryType>(proto->InventoryType)))
         return false;
 
     return CLASS_WEAPON_PROFICIENCY[clazz] & (1u << proto->SubClass);
@@ -1849,7 +1823,7 @@ uint32 RandomItemMgr::GetUpgrade(Player* player, std::string spec, uint8 slot, u
 }
 
 std::vector<uint32> RandomItemMgr::GetUpgradeList(Player* player, std::string spec, uint8 slot, uint32 quality,
-                                                  uint32 itemId, uint32 amount)
+                                                  uint32 itemId, uint32 /* amount */)
 {
     std::vector<uint32> listItems;
     if (!player)
@@ -2178,7 +2152,7 @@ void RandomItemMgr::BuildCacheEquip()
                                 proto->Class != ITEM_CLASS_CONTAINER && proto->Class != ITEM_CLASS_PROJECTILE)
                                 continue;
 
-                            if (!CanEquipItem(key, proto))
+                            if (!CanEquipItem(proto, key.slot, key.level, key.quality))
                                 continue;
 
                             if (proto->Class == ITEM_CLASS_ARMOR &&
@@ -2304,7 +2278,7 @@ RandomItemList RandomItemMgr::Query(uint32 level, uint8 clazz, uint8 slot, uint3
             proto->Class != ITEM_CLASS_CONTAINER && proto->Class != ITEM_CLASS_PROJECTILE)
             continue;
 
-        if (!CanEquipItem(key, proto))
+        if (!CanEquipItem(proto, key.slot, key.level, key.quality))
             continue;
 
         if (proto->Class == ITEM_CLASS_ARMOR &&

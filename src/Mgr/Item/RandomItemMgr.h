@@ -8,6 +8,7 @@
 
 #include <map>
 #include <set>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -248,10 +249,10 @@ private:
 
     void AddItemStats(uint32 mod, uint8& sp, uint8& ap, uint8& tank);
     bool CheckItemStats(uint8 clazz, uint8 sp, uint8 ap, uint8 tank);
-    bool CanEquipItem(BotEquipKey key, ItemTemplate const* proto);
+    bool CanEquipItem(ItemTemplate const* proto, uint8 slot, uint32 level, uint32 quality);
     bool CanEquipItemNew(ItemTemplate const* proto);
 
-    std::vector<uint8> GetViableSlots(InventoryType type) const;
+    std::vector<EquipmentSlots> const* GetViableSlots(InventoryType type) const;
 
 private:
     RandomItemMgr();
@@ -266,8 +267,7 @@ private:
     std::map<uint32, RandomItemCache> randomItemCache;
     std::map<RandomItemType, RandomItemPredicate*> predicates;
     BotEquipCache equipCache;
-    std::map<EquipmentSlots, std::set<InventoryType>> viableSlots;
-    std::map<InventoryType, std::vector<EquipmentSlots>> inventoryTypeToSlots;
+    std::unordered_map<InventoryType, std::vector<EquipmentSlots>> viableSlots;
     std::map<uint32, std::map<uint32, std::vector<uint32>>> ammoCache;
     std::map<uint32, std::map<uint32, std::vector<uint32>>> potionCache;
     std::map<uint32, std::map<uint32, std::vector<uint32>>> foodCache;
