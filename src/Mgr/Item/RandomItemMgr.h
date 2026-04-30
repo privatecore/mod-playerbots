@@ -161,7 +161,7 @@ public:
                                        uint32 amount = 1);
 
     bool HasStatWeight(uint32 itemId);
-    uint32 CalculateStatWeight(uint8 playerclass, uint8 spec, ItemTemplate const* proto);
+    uint32 CalculateStatWeight(ItemTemplate const* proto, uint8 playerclass, uint8 spec);
     uint32 CalculateSingleStatWeight(uint8 playerclass, uint8 spec, std::string stat, uint32 value);
 
     uint32 GetMinLevelFromCache(uint32 itemId);
@@ -178,8 +178,8 @@ public:
 
     bool CanEquipArmor(ItemTemplate const* proto, uint8 clazz, uint32 level);
     bool CanEquipWeapon(ItemTemplate const* proto, uint8 clazz);
-    bool ShouldEquipArmorForSpec(uint8 playerclass, uint8 spec, ItemTemplate const* proto);
-    bool ShouldEquipWeaponForSpec(uint8 playerclass, uint8 spec, ItemTemplate const* proto);
+    bool ShouldEquipArmorForSpec(ItemTemplate const* proto, uint8 playerclass, uint8 spec);
+    bool ShouldEquipWeaponForSpec(ItemTemplate const* proto, uint8 playerclass, uint8 spec);
 
     uint32 GetQuestIdForItem(uint32 itemId);
     std::vector<uint32> GetQuestIdsForItem(uint32 itemId);

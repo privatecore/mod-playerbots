@@ -547,7 +547,7 @@ std::vector<uint32> RandomItemMgr::GetCachedEquipments(uint32 requiredLevel, uin
     return equipCacheNew[requiredLevel][inventoryType];
 }
 
-bool RandomItemMgr::ShouldEquipArmorForSpec(uint8 playerclass, uint8 spec, ItemTemplate const* proto)
+bool RandomItemMgr::ShouldEquipArmorForSpec(ItemTemplate const* proto, uint8 playerclass, uint8 spec)
 {
     if (proto->InventoryType == INVTYPE_TABARD)
         return true;
@@ -644,7 +644,7 @@ bool RandomItemMgr::ShouldEquipArmorForSpec(uint8 playerclass, uint8 spec, ItemT
     return resultArmorSubClass.find(proto->SubClass) != resultArmorSubClass.end();
 }
 
-bool RandomItemMgr::ShouldEquipWeaponForSpec(uint8 playerclass, uint8 spec, ItemTemplate const* proto)
+bool RandomItemMgr::ShouldEquipWeaponForSpec(ItemTemplate const* proto, uint8 playerclass, uint8 spec)
 {
     EquipmentSlots slot_mh = EQUIPMENT_SLOT_START;
     EquipmentSlots slot_oh = EQUIPMENT_SLOT_START;
@@ -1313,7 +1313,7 @@ void RandomItemMgr::BuildCacheItemInfo()
     PlayerbotsDatabase.CommitTransaction(trans);
 }
 
-uint32 RandomItemMgr::CalculateStatWeight(uint8 playerclass, uint8 spec, ItemTemplate const* proto)
+uint32 RandomItemMgr::CalculateStatWeight(ItemTemplate const* proto, uint8 playerclass, uint8 spec)
 {
     uint32 statWeight = 0;
     bool isCasterItem = false;
