@@ -36,8 +36,6 @@ static uint32 GetWeaponSkillId(uint32 subClass)
     }
 }
 
-uint64 BotEquipKey::GetKey() { return level + 100 * clazz + 10000 * slot + 1000000 * quality; }
-
 class RandomItemGuildTaskPredicate : public RandomItemPredicate
 {
 public:

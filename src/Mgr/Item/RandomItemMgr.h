@@ -106,26 +106,33 @@ typedef std::map<RandomItemType, RandomItemList> RandomItemCache;
 class BotEquipKey
 {
 public:
-    BotEquipKey() : level(0), clazz(0), slot(0), quality(0), key(GetKey()) {}
+    BotEquipKey() : level(0), clazz(0), slot(0), quality(0), m_key(GetKey()) {}
     BotEquipKey(uint32 level, uint8 clazz, uint8 slot, uint32 quality)
-        : level(level), clazz(clazz), slot(slot), quality(quality), key(GetKey())
-    {
-    }
-    BotEquipKey(BotEquipKey const& other)
-        : level(other.level), clazz(other.clazz), slot(other.slot), quality(other.quality), key(GetKey())
+        : level(level), clazz(clazz), slot(slot), quality(quality), m_key(GetKey())
     {
     }
 
-    bool operator<(BotEquipKey const& other) const { return other.key < this->key; }
+    BotEquipKey(BotEquipKey const&) = default;
+    BotEquipKey& operator=(BotEquipKey const&) = default;
+
+    bool operator<(BotEquipKey const& other) const { return m_key < other.m_key; }
 
     uint32 level;
-    uint8 clazz;
-    uint8 slot;
+    uint8  clazz;
+    uint8  slot;
     uint32 quality;
-    uint64 key;
 
 private:
-    uint64 GetKey();
+    uint64 m_key;
+
+    uint64 GetKey() const
+    {
+        // bit layout - 8 bits per field, masked to prevent uint32 overflow bleed
+        return (static_cast<uint64>(level   & 0xFFu) << 24) |
+               (static_cast<uint64>(clazz   & 0xFFu) << 16) |
+               (static_cast<uint64>(slot    & 0xFFu) <<  8) |
+               (static_cast<uint64>(quality & 0xFFu));
+    }
 };
 
 typedef std::map<BotEquipKey, RandomItemList> BotEquipCache;
