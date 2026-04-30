@@ -11,7 +11,7 @@
 #include "Playerbots.h"
 
 char* strstri(char const* str1, char const* str2);
-std::set<uint32> RandomItemMgr::itemCache;
+std::unordered_set<uint32> RandomItemMgr::itemCache;
 
 static uint32 GetWeaponSkillId(uint32 subClass)
 {
@@ -1348,7 +1348,7 @@ uint32 RandomItemMgr::CalculateStatWeight(ItemTemplate const* proto, uint8 playe
         if (val == 0)
             continue;
 
-        for (std::map<std::string, uint32>::iterator i = weightStatLink.begin(); i != weightStatLink.end(); ++i)
+        for (std::unordered_map<std::string, uint32>::iterator i = weightStatLink.begin(); i != weightStatLink.end(); ++i)
         {
             uint32 modd = i->second;
             if (modd == statType)
@@ -1558,7 +1558,7 @@ uint32 RandomItemMgr::CalculateStatWeight(ItemTemplate const* proto, uint8 playe
                             int32 val = spellInfo->Effects[j].BasePoints + 1;
                             std::string weightName;
 
-                            for (std::map<std::string, uint32>::iterator i = weightRatingLink.begin();
+                            for (std::unordered_map<std::string, uint32>::iterator i = weightRatingLink.begin();
                                  i != weightRatingLink.end(); ++i)
                             {
                                 uint32 modd = i->second;
@@ -1784,7 +1784,7 @@ uint32 RandomItemMgr::GetUpgrade(Player* player, std::string spec, uint8 slot, u
             LOG_INFO("playerbots", "Old item has no stat weight");
     }
 
-    for (std::map<uint32, ItemInfoEntry>::iterator i = itemInfoCache.begin(); i != itemInfoCache.end(); ++i)
+    for (std::unordered_map<uint32, ItemInfoEntry>::iterator i = itemInfoCache.begin(); i != itemInfoCache.end(); ++i)
     {
         ItemInfoEntry& info = i->second;
 
@@ -1905,7 +1905,7 @@ std::vector<uint32> RandomItemMgr::GetUpgradeList(Player* player, std::string sp
             LOG_INFO("playerbots", "Old item has no stat weight");
     }
 
-    for (std::map<uint32, ItemInfoEntry>::iterator i = itemInfoCache.begin(); i != itemInfoCache.end(); ++i)
+    for (std::unordered_map<uint32, ItemInfoEntry>::iterator i = itemInfoCache.begin(); i != itemInfoCache.end(); ++i)
     {
         ItemInfoEntry& info = i->second;
 

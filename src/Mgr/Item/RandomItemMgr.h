@@ -6,8 +6,8 @@
 #ifndef _PLAYERBOT_RANDOMITEMMGR_H
 #define _PLAYERBOT_RANDOMITEMMGR_H
 
+#include <array>
 #include <map>
-#include <set>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -101,7 +101,7 @@ public:
 };
 
 typedef std::vector<uint32> RandomItemList;
-typedef std::map<RandomItemType, RandomItemList> RandomItemCache;
+typedef std::unordered_map<RandomItemType, RandomItemList> RandomItemCache;
 
 class BotEquipKey
 {
@@ -116,6 +116,7 @@ public:
     BotEquipKey& operator=(BotEquipKey const&) = default;
 
     bool operator<(BotEquipKey const& other) const { return m_key < other.m_key; }
+    bool operator==(BotEquipKey const& other) const { return m_key == other.m_key; }
 
     uint32 level;
     uint8  clazz;
@@ -135,7 +136,27 @@ private:
     }
 };
 
-typedef std::map<BotEquipKey, RandomItemList> BotEquipCache;
+namespace std
+{
+    template<>
+    struct hash<BotEquipKey>
+    {
+        public:
+            std::size_t operator()(BotEquipKey const& key) const
+            {
+                // identical bit layout to BotEquipKey::GetKey()
+                uint64 const packed =
+                    (static_cast<uint64>(key.level   & 0xFFu) << 24) |
+                    (static_cast<uint64>(key.clazz   & 0xFFu) << 16) |
+                    (static_cast<uint64>(key.slot    & 0xFFu) <<  8) |
+                    (static_cast<uint64>(key.quality & 0xFFu));
+
+                return std::hash<uint64>()(packed);
+            }
+    };
+}
+
+typedef std::unordered_map<BotEquipKey, RandomItemList> BotEquipCache;
 
 class RandomItemMgr
 {
@@ -228,23 +249,24 @@ private:
 
     std::array<uint32, MAX_CLASSES> m_weaponProficiency = {};
 
-    std::map<uint32, RandomItemCache> randomItemCache;
-    std::map<RandomItemType, RandomItemPredicate*> predicates;
     BotEquipCache equipCache;
+
+    std::unordered_map<uint32, RandomItemCache> randomItemCache;
+    std::unordered_map<RandomItemType, RandomItemPredicate*> predicates;
     std::unordered_map<InventoryType, std::vector<EquipmentSlots>> viableSlots;
-    std::map<uint32, std::map<uint32, std::vector<uint32>>> ammoCache;
-    std::map<uint32, std::map<uint32, std::vector<uint32>>> potionCache;
-    std::map<uint32, std::map<uint32, std::vector<uint32>>> foodCache;
-    std::map<uint32, std::vector<uint32>> tradeCache;
-    std::map<uint32, float> rarityCache;
-    std::map<uint8, WeightScale> m_weightScales[MAX_CLASSES];
-    std::map<std::string, uint32> weightStatLink;
-    std::map<std::string, uint32> weightRatingLink;
-    std::map<uint32, ItemInfoEntry> itemInfoCache;
+    std::unordered_map<uint32, std::unordered_map<uint32, std::vector<uint32>>> ammoCache;
+    std::unordered_map<uint32, std::unordered_map<uint32, std::vector<uint32>>> potionCache;
+    std::unordered_map<uint32, std::unordered_map<uint32, std::vector<uint32>>> foodCache;
+    std::unordered_map<uint32, std::vector<uint32>> tradeCache;
+    std::unordered_map<uint32, float> rarityCache;
+    std::unordered_map<uint8, WeightScale> m_weightScales[MAX_CLASSES];
+    std::unordered_map<std::string, uint32> weightStatLink;
+    std::unordered_map<std::string, uint32> weightRatingLink;
+    std::unordered_map<uint32, ItemInfoEntry> itemInfoCache;
     std::unordered_set<uint32> itemForTest;
-    static std::set<uint32> itemCache;
+    static std::unordered_set<uint32> itemCache;
     // equipCacheNew[RequiredLevel][InventoryType]
-    std::map<uint32, std::map<uint32, std::vector<uint32>>> equipCacheNew;
+    std::unordered_map<uint32, std::unordered_map<uint32, std::vector<uint32>>> equipCacheNew;
 };
 
 #define sRandomItemMgr RandomItemMgr::instance()
