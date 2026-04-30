@@ -5,12 +5,36 @@
 
 #include "RandomItemMgr.h"
 
+#include "DBCStores.h"
 #include "ItemTemplate.h"
 #include "LootValues.h"
 #include "Playerbots.h"
 
 char* strstri(char const* str1, char const* str2);
 std::set<uint32> RandomItemMgr::itemCache;
+
+static uint32 GetWeaponSkillId(uint32 subClass)
+{
+    switch (subClass)
+    {
+        case ITEM_SUBCLASS_WEAPON_AXE:      return SKILL_AXES;
+        case ITEM_SUBCLASS_WEAPON_AXE2:     return SKILL_2H_AXES;
+        case ITEM_SUBCLASS_WEAPON_BOW:      return SKILL_BOWS;
+        case ITEM_SUBCLASS_WEAPON_GUN:      return SKILL_GUNS;
+        case ITEM_SUBCLASS_WEAPON_MACE:     return SKILL_MACES;
+        case ITEM_SUBCLASS_WEAPON_MACE2:    return SKILL_2H_MACES;
+        case ITEM_SUBCLASS_WEAPON_POLEARM:  return SKILL_POLEARMS;
+        case ITEM_SUBCLASS_WEAPON_SWORD:    return SKILL_SWORDS;
+        case ITEM_SUBCLASS_WEAPON_SWORD2:   return SKILL_2H_SWORDS;
+        case ITEM_SUBCLASS_WEAPON_STAFF:    return SKILL_STAVES;
+        case ITEM_SUBCLASS_WEAPON_FIST:     return SKILL_FIST_WEAPONS;
+        case ITEM_SUBCLASS_WEAPON_DAGGER:   return SKILL_DAGGERS;
+        case ITEM_SUBCLASS_WEAPON_THROWN:   return SKILL_THROWN;
+        case ITEM_SUBCLASS_WEAPON_CROSSBOW: return SKILL_CROSSBOWS;
+        case ITEM_SUBCLASS_WEAPON_WAND:     return SKILL_WANDS;
+        default:                            return SKILL_NONE;
+    }
+}
 
 uint64 BotEquipKey::GetKey() { return level + 100 * clazz + 10000 * slot + 1000000 * quality; }
 
@@ -80,6 +104,7 @@ private:
 
 RandomItemMgr::RandomItemMgr()
 {
+    InitWeaponProficiency();
     InitPredicates();
     InitViableSlots();
     InitWeightLinks();
@@ -91,6 +116,29 @@ RandomItemMgr::~RandomItemMgr()
         delete pair.second;
 
     predicates.clear();
+}
+
+void RandomItemMgr::InitWeaponProficiency()
+{
+    m_weaponProficiency.fill(0);
+
+    for (uint32 subClass = 0; subClass < MAX_ITEM_SUBCLASS_WEAPON; ++subClass)
+    {
+        uint32 const skillId = GetWeaponSkillId(subClass);
+        if (!skillId)
+            continue; // ITEM_SUBCLASS_WEAPON_SPEAR, FISHING_POLE, OBSOLETE, etc.
+
+        for (uint8 cls = CLASS_WARRIOR; cls < MAX_CLASSES; ++cls)
+        {
+            if (!((1u << (cls - 1)) & CLASSMASK_ALL_PLAYABLE))
+                continue;
+
+            // Weapon proficiencies in WotLK are class-based, not race-based,
+            // so using RACE_HUMAN here is acceptable as a placeholder.
+            if (GetSkillRaceClassInfo(skillId, RACE_HUMAN, cls))
+                m_weaponProficiency[cls] |= (1u << subClass);
+        }
+    }
 }
 
 void RandomItemMgr::InitPredicates()
@@ -828,7 +876,7 @@ bool RandomItemMgr::CanEquipWeapon(ItemTemplate const* proto, uint8 clazz)
     if (!GetViableSlots(static_cast<InventoryType>(proto->InventoryType)))
         return false;
 
-    return CLASS_WEAPON_PROFICIENCY[clazz] & (1u << proto->SubClass);
+    return (m_weaponProficiency[clazz] & (1u << proto->SubClass)) != 0;
 }
 
 void RandomItemMgr::BuildCacheItemInfo()
