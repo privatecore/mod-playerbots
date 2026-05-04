@@ -232,7 +232,8 @@ void RandomItemMgr::InitWeightLinks()
 void RandomItemMgr::Init()
 {
     BuildCacheItemInfo();
-    // BuildCacheEquip();
+    // if (!LoadCacheEquip())
+    //     BuildCacheEquip();
     BuildCacheEquipNew();
     BuildCacheAmmo();
     BuildCacheFood();
@@ -421,12 +422,12 @@ uint32 RandomItemMgr::GetRandomItem(uint32 level, RandomItemType type, RandomIte
     return Acore::Containers::SelectRandomContainerElement(list);
 }
 
-bool RandomItemMgr::CanEquipItem(ItemTemplate const* proto, uint8 slot, uint32 level, uint32 quality)
+bool RandomItemMgr::CanEquipItem(ItemTemplate const* proto, uint32 level)
 {
     if (!proto)
         return false;
 
-    if ((proto->RequiredLevel && proto->RequiredLevel > level) || proto->Quality != quality)
+    if (proto->RequiredLevel && proto->RequiredLevel > level)
         return false;
 
     if (proto->Duration & 0x80000000)
@@ -435,15 +436,7 @@ bool RandomItemMgr::CanEquipItem(ItemTemplate const* proto, uint8 slot, uint32 l
     if (proto->Bonding == BIND_QUEST_ITEM || proto->Bonding == BIND_WHEN_USE)
         return false;
 
-    // special case for containers - skip equipment slot check
-    if (proto->Class == ITEM_CLASS_CONTAINER)
-        return true;
-
-    auto const* slots = GetViableSlots(static_cast<InventoryType>(proto->InventoryType));
-    if (!slots)
-        return false;
-
-    if (std::ranges::find(*slots, static_cast<EquipmentSlots>(slot)) == slots->end())
+    if (!GetViableSlots(static_cast<InventoryType>(proto->InventoryType)))
         return false;
 
     if (proto->Quality > ITEM_QUALITY_NORMAL)
@@ -472,20 +465,6 @@ bool RandomItemMgr::CanEquipItem(ItemTemplate const* proto, uint8 slot, uint32 l
     }
 
     return true;
-}
-
-bool RandomItemMgr::CanEquipItemNew(ItemTemplate const* proto)
-{
-    if (proto->Duration & 0x80000000)
-        return false;
-
-    if (proto->Bonding == BIND_QUEST_ITEM || proto->Bonding == BIND_WHEN_USE)
-        return false;
-
-    if (proto->Class == ITEM_CLASS_CONTAINER)
-        return false;
-
-    return GetViableSlots(static_cast<InventoryType>(proto->InventoryType)) != nullptr;
 }
 
 void RandomItemMgr::AddItemStats(uint32 mod, uint8& sp, uint8& ap, uint8& tank)
@@ -2134,112 +2113,123 @@ uint32 RandomItemMgr::GetLiveStatWeight(Player* player, uint32 itemId)
     return statWeight;
 }
 
+bool RandomItemMgr::LoadCacheEquip()
+{
+    uint32 const oldMSTime = getMSTime();
+
+    LOG_INFO("server.loading", "Loading equipment cache...");
+
+    PreparedQueryResult result =
+        PlayerbotsDatabase.Query(PlayerbotsDatabase.GetPreparedStatement(PLAYERBOTS_SEL_EQUIP_CACHE));
+
+    if (!result)
+    {
+        LOG_WARN("server.loading", ">> Loaded 0 equipment items. DB table `playerbots_equip_cache` is empty!");
+        return false;
+    }
+
+    uint32 count = 0;
+    do
+    {
+        Field* fields  = result->Fetch();
+        uint8  clazz   = fields[0].Get<uint8>();
+        uint32 level   = fields[1].Get<uint32>();
+        uint8  slot    = fields[2].Get<uint8>();
+        uint32 quality = fields[3].Get<uint32>();
+        uint32 itemId  = fields[4].Get<uint32>();
+
+        BotEquipKey key(level, clazz, slot, quality);
+        equipCache[key].push_back(itemId);
+
+        ++count;
+    } while (result->NextRow());
+
+    LOG_INFO("server.loading", ">> Loaded {} equipment records in {} ms", count, GetMSTimeDiffToNow(oldMSTime));
+    LOG_INFO("server.loading", " ");
+
+    return true;
+}
+
 void RandomItemMgr::BuildCacheEquip()
 {
+    uint32 const oldMSTime = getMSTime();
+
     uint32 maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
-    if (maxLevel > sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL))
-        maxLevel = sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL);
 
     ItemTemplateContainer const* itemTemplates = sObjectMgr->GetItemTemplateStore();
 
-    PlayerbotsDatabasePreparedStatement* stmt = PlayerbotsDatabase.GetPreparedStatement(PLAYERBOTS_SEL_EQUIP_CACHE);
-    if (PreparedQueryResult result = PlayerbotsDatabase.Query(stmt))
+    PlayerbotsDatabaseTransaction trans = PlayerbotsDatabase.BeginTransaction();
+
+    bool weaponOK = false;
+    bool armorOKBelow40Lvl = false;
+    bool armorOKAbove40Lvl = false;
+
+    uint32 count = 0;
+    for (auto const& itr : *itemTemplates)
     {
-        LOG_INFO("server.loading",
-                 "Loading equipment cache for {} classes, {} levels, {} slots, {} quality from {} items", MAX_CLASSES,
-                 maxLevel, EQUIPMENT_SLOT_END, ITEM_QUALITY_ARTIFACT, itemTemplates->size());
+        ItemTemplate const* proto = &itr.second;
 
-        uint32 count = 0;
-        do
+        if (proto->Class != ITEM_CLASS_WEAPON && proto->Class != ITEM_CLASS_ARMOR)
+            continue;
+
+        if (proto->Quality > ITEM_QUALITY_ARTIFACT)
+            continue;
+
+        auto const* slots = GetViableSlots(static_cast<InventoryType>(proto->InventoryType));
+        if (!slots)
+            continue;
+
+        for (uint8 clazz = CLASS_WARRIOR; clazz < MAX_CLASSES; ++clazz)
         {
-            Field* fields = result->Fetch();
-            uint8 clazz = fields[0].Get<uint8>();
-            uint32 level = fields[1].Get<uint32>();
-            uint8 slot = fields[2].Get<uint8>();
-            uint32 quality = fields[3].Get<uint32>();
-            uint32 itemId = fields[4].Get<uint32>();
-
-            BotEquipKey key(level, clazz, slot, quality);
-            equipCache[key].push_back(itemId);
-            ++count;
-        } while (result->NextRow());
-
-        LOG_INFO("playerbots", "Equipment cache loaded from {} records", count);
-    }
-    else
-    {
-        uint64 total = MAX_CLASSES * maxLevel * EQUIPMENT_SLOT_END * ITEM_QUALITY_ARTIFACT;
-        LOG_INFO("server.loading",
-                 "Building equipment cache for {} classes, {} levels, {} slots, {} quality from {} items ({} total)",
-                 MAX_CLASSES, maxLevel, EQUIPMENT_SLOT_END, ITEM_QUALITY_ARTIFACT, itemTemplates->size(), total);
-
-        for (uint8 class_ = CLASS_WARRIOR; class_ < MAX_CLASSES; ++class_)
-        {
-            // skip nonexistent classes
-            if (!((1 << (class_ - 1)) & CLASSMASK_ALL_PLAYABLE) || !sChrClassesStore.LookupEntry(class_))
+            if (((1u << (clazz - 1)) & CLASSMASK_ALL_PLAYABLE) == 0)
                 continue;
+
+            if ((proto->AllowableClass & (1u << (clazz - 1))) == 0)
+                continue;
+
+            // cache CanEquip results before processing level loop
+            weaponOK          = proto->Class == ITEM_CLASS_WEAPON && CanEquipWeapon(proto, clazz);
+            armorOKBelow40Lvl = proto->Class == ITEM_CLASS_ARMOR  && CanEquipArmor(proto, clazz, 1);
+            armorOKAbove40Lvl = proto->Class == ITEM_CLASS_ARMOR  && CanEquipArmor(proto, clazz, 40);
 
             for (uint32 level = 1; level <= maxLevel; ++level)
             {
-                for (uint8 slot = 0; slot < EQUIPMENT_SLOT_END; ++slot)
+                if (!CanEquipItem(proto, level))
+                    continue;
+
+                if (proto->Class == ITEM_CLASS_WEAPON && !weaponOK)
+                    continue;
+
+                if (proto->Class == ITEM_CLASS_ARMOR)
                 {
-                    for (uint32 quality = ITEM_QUALITY_POOR; quality <= ITEM_QUALITY_ARTIFACT; ++quality)
-                    {
-                        BotEquipKey key(level, class_, slot, quality);
+                    if ((level < 40 && !armorOKBelow40Lvl) || (level >= 40 && !armorOKAbove40Lvl))
+                        continue;
+                }
 
-                        RandomItemList items;
-                        for (auto const& itr : *itemTemplates)
-                        {
-                            ItemTemplate const* proto = &itr.second;
-                            if (!proto)
-                                continue;
+                for (EquipmentSlots slot : *slots)
+                {
+                    BotEquipKey key(level, clazz, static_cast<uint8>(slot), proto->Quality);
 
-                            if (proto->Class != ITEM_CLASS_WEAPON && proto->Class != ITEM_CLASS_ARMOR &&
-                                proto->Class != ITEM_CLASS_CONTAINER && proto->Class != ITEM_CLASS_PROJECTILE)
-                                continue;
+                    equipCache[key].push_back(itr.first);
+                    ++count;
 
-                            if (!CanEquipItem(proto, key.slot, key.level, key.quality))
-                                continue;
-
-                            if (proto->Class == ITEM_CLASS_ARMOR &&
-                                (slot == EQUIPMENT_SLOT_HEAD || slot == EQUIPMENT_SLOT_SHOULDERS ||
-                                 slot == EQUIPMENT_SLOT_CHEST || slot == EQUIPMENT_SLOT_WAIST ||
-                                 slot == EQUIPMENT_SLOT_LEGS || slot == EQUIPMENT_SLOT_FEET ||
-                                 slot == EQUIPMENT_SLOT_WRISTS || slot == EQUIPMENT_SLOT_HANDS) &&
-                                !CanEquipArmor(proto, key.clazz, key.level))
-                                continue;
-
-                            if (proto->Class == ITEM_CLASS_WEAPON && !CanEquipWeapon(proto, key.clazz))
-                                continue;
-
-                            if (slot == EQUIPMENT_SLOT_OFFHAND && key.clazz == CLASS_ROGUE &&
-                                proto->Class != ITEM_CLASS_WEAPON)
-                                continue;
-
-                            items.push_back(itr.first);
-
-                            PlayerbotsDatabasePreparedStatement* stmt =
-                                PlayerbotsDatabase.GetPreparedStatement(PLAYERBOTS_INS_EQUIP_CACHE);
-                            stmt->SetData(0, class_);
-                            stmt->SetData(1, level);
-                            stmt->SetData(2, slot);
-                            stmt->SetData(3, quality);
-                            stmt->SetData(4, proto->ItemId);
-                            PlayerbotsDatabase.Execute(stmt);
-                        }
-
-                        equipCache[key] = items;
-
-                        LOG_DEBUG("playerbots",
-                                  "Equipment cache for class: {}, level {}, slot {}, quality {}: {} items", class_,
-                                  level, slot, quality, items.size());
-                    }
+                    PlayerbotsDatabasePreparedStatement* stmt =
+                        PlayerbotsDatabase.GetPreparedStatement(PLAYERBOTS_INS_EQUIP_CACHE);
+                    stmt->SetData(0, clazz);
+                    stmt->SetData(1, level);
+                    stmt->SetData(2, slot);
+                    stmt->SetData(3, proto->Quality);
+                    stmt->SetData(4, proto->ItemId);
+                    trans->Append(stmt);
                 }
             }
         }
-
-        LOG_INFO("server.loading", "Equipment cache saved to DB");
     }
+
+    PlayerbotsDatabase.CommitTransaction(trans);
+
+    LOG_INFO("server.loading", ">> Cached total {} equipment entries in {} ms", count, GetMSTimeDiffToNow(oldMSTime));
+    LOG_INFO("server.loading", " ");
 }
 
 void RandomItemMgr::BuildCacheEquipNew()
@@ -2306,43 +2296,6 @@ void RandomItemMgr::BuildCacheEquipNew()
 
         equipCacheNew[proto->RequiredLevel][proto->InventoryType].push_back(itemId);
     }
-}
-
-RandomItemList RandomItemMgr::Query(uint32 level, uint8 clazz, uint8 slot, uint32 quality)
-{
-    // return equipCache[key];
-    BotEquipKey key(level, clazz, slot, quality);
-    RandomItemList items;
-    ItemTemplateContainer const* itemTemplates = sObjectMgr->GetItemTemplateStore();
-    for (auto const& itr : *itemTemplates)
-    {
-        ItemTemplate const* proto = &itr.second;
-        if (!proto)
-            continue;
-
-        if (proto->Class != ITEM_CLASS_WEAPON && proto->Class != ITEM_CLASS_ARMOR &&
-            proto->Class != ITEM_CLASS_CONTAINER && proto->Class != ITEM_CLASS_PROJECTILE)
-            continue;
-
-        if (!CanEquipItem(proto, key.slot, key.level, key.quality))
-            continue;
-
-        if (proto->Class == ITEM_CLASS_ARMOR &&
-            (slot == EQUIPMENT_SLOT_HEAD || slot == EQUIPMENT_SLOT_SHOULDERS || slot == EQUIPMENT_SLOT_CHEST ||
-             slot == EQUIPMENT_SLOT_WAIST || slot == EQUIPMENT_SLOT_LEGS || slot == EQUIPMENT_SLOT_FEET ||
-             slot == EQUIPMENT_SLOT_WRISTS || slot == EQUIPMENT_SLOT_HANDS) &&
-            !CanEquipArmor(proto, key.clazz, key.level))
-            continue;
-
-        if (proto->Class == ITEM_CLASS_WEAPON && !CanEquipWeapon(proto, key.clazz))
-            continue;
-
-        if (slot == EQUIPMENT_SLOT_OFFHAND && key.clazz == CLASS_ROGUE && proto->Class != ITEM_CLASS_WEAPON)
-            continue;
-
-        items.push_back(itr.first);
-    }
-    return items;
 }
 
 void RandomItemMgr::BuildCacheAmmo()

@@ -175,7 +175,6 @@ public:
     static bool HandleConsoleCommand(ChatHandler* handler, char const* args);
 
     RandomItemList Query(uint32 level, RandomItemType type, RandomItemPredicate* predicate);
-    RandomItemList Query(uint32 level, uint8 clazz, uint8 slot, uint32 quality);
 
     uint32 GetUpgrade(Player* player, std::string spec, uint8 slot, uint32 quality, uint32 itemId);
     std::vector<uint32> GetUpgradeList(Player* player, std::string spec, uint8 slot, uint32 quality, uint32 itemId,
@@ -215,6 +214,7 @@ private:
     void InitViableSlots();
     void InitWeightLinks();
 
+    bool LoadCacheEquip();
     bool LoadCacheRandomItem();
     bool LoadCacheRarity();
 
@@ -232,8 +232,7 @@ private:
 
     void AddItemStats(uint32 mod, uint8& sp, uint8& ap, uint8& tank);
     bool CheckItemStats(uint8 clazz, uint8 sp, uint8 ap, uint8 tank);
-    bool CanEquipItem(ItemTemplate const* proto, uint8 slot, uint32 level, uint32 quality);
-    bool CanEquipItemNew(ItemTemplate const* proto);
+    bool CanEquipItem(ItemTemplate const* proto, uint32 level);
 
     std::vector<EquipmentSlots> const* GetViableSlots(InventoryType type) const;
 
