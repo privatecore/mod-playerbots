@@ -989,29 +989,32 @@ void RandomItemMgr::BuildCacheItemInfo()
     for (auto const& itr : *itemTemplate)
     {
         ItemTemplate const* proto = &itr.second;
-        if (!proto)
-            continue;
 
-        // skip test items
-        if (strstr(proto->Name1.c_str(), "(Test)") || strstr(proto->Name1.c_str(), "(TEST)") ||
-            strstr(proto->Name1.c_str(), "(test)") || strstr(proto->Name1.c_str(), "(JEFFTEST)") ||
-            strstr(proto->Name1.c_str(), "Test ") || strstr(proto->Name1.c_str(), "Test") ||
-            strstr(proto->Name1.c_str(), "TEST") || strstr(proto->Name1.c_str(), "TEST ") ||
-            strstr(proto->Name1.c_str(), " TEST") || strstr(proto->Name1.c_str(), "2200 ") ||
-            strstr(proto->Name1.c_str(), "Deprecated ") || strstr(proto->Name1.c_str(), "Unused ") ||
-            strstr(proto->Name1.c_str(), "Monster ") || strstr(proto->Name1.c_str(), "[PH]") ||
-            strstr(proto->Name1.c_str(), "(OLD)") || strstr(proto->Name1.c_str(), "QR") ||
-            strstr(proto->Name1.c_str(), "zzOLD"))
-        {
-            itemForTest.insert(proto->ItemId);
-            continue;
-        }
-
+        // skip deprecated items
         if (proto->HasFlag(ITEM_FLAG_DEPRECATED))
         {
             itemForTest.insert(proto->ItemId);
             continue;
         }
+
+        // skip test items
+        char const* name = proto->Name1.c_str();
+        if (strstr(name, "Monster ")    ||  // 574
+            strstr(name, "Test")        ||  // 427 -- "(Test)", "Test "
+            strstr(name, "Deprecated ") ||  // 399
+            strstr(name, "[PH]")        ||  // 138
+            strstr(name, "TEST")        ||  // 108 -- "(TEST)", "TEST ", " TEST", "(JEFFTEST)"
+            strstr(name, "Unused ")     ||  // 19
+            strstr(name, "zzOLD")       ||  // 11
+            strstr(name, "(test)")      ||  // 8
+            strstr(name, "(OLD)")       ||  // 7
+            strstr(name, "QR")          ||  // 5
+            strstr(name, "2200 "))          // 4
+        {
+            itemForTest.insert(proto->ItemId);
+            continue;
+        }
+
         // skip items with rank/rep requirements
         /*if (proto->RequiredHonorRank > 0 ||
             proto->RequiredSkillRank > 0 ||
