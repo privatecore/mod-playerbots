@@ -2892,7 +2892,10 @@ inline bool ContainsInternal(uint32 itemId, uint32 skillId)
 
 bool RandomItemMgr::IsUsedBySkill(ItemTemplate const* proto, uint32 skillId)
 {
-    if (itemCache.find(proto->ItemId) != itemCache.end())
+    if (!proto)
+        return false;
+
+    if (itemCache.contains(proto->ItemId))
         return true;
 
     switch (proto->Class)
@@ -2906,6 +2909,8 @@ bool RandomItemMgr::IsUsedBySkill(ItemTemplate const* proto, uint32 skillId)
                 itemCache.insert(proto->ItemId);
                 return true;
             }
+            break;
+        default:
             break;
     }
 
