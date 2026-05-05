@@ -2239,68 +2239,87 @@ void RandomItemMgr::BuildCacheEquip()
 
 void RandomItemMgr::BuildCacheEquipNew()
 {
-    LOG_INFO("playerbots", "Loading equipments cache...");
+    uint32 const oldMSTime = getMSTime();
+
+    uint32 const maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
+
+    LOG_INFO("server.loading", "Building equipment cache (new) for {} levels...", maxLevel);
 
     std::unordered_set<uint32> questItemIds;
-    ObjectMgr::QuestMap const& questTemplates = sObjectMgr->GetQuestTemplates();
-    for (ObjectMgr::QuestMap::const_iterator i = questTemplates.begin(); i != questTemplates.end(); ++i)
-    {
-        //uint32 questId = i->first; //not used in this scope, line marked for removal.
-        Quest const* quest = i->second;
+    uint32 count = 0;
 
+    auto processQuestItem = [&](uint32 itemId, int32 itemQuestLevel)
+    {
+        if (!itemId || questItemIds.contains(itemId))
+            return;
+
+        ItemTemplate const* proto = sObjectMgr->GetItemTemplate(itemId);
+        if (!proto)
+            return;
+
+        if (proto->Class != ITEM_CLASS_WEAPON && proto->Class != ITEM_CLASS_ARMOR)
+            return;
+
+        if (!GetViableSlots(static_cast<InventoryType>(proto->InventoryType)))
+            return;
+
+        uint32 const requiredLevel = static_cast<uint32>(
+            std::max(0, std::max(static_cast<int32>(proto->RequiredLevel), itemQuestLevel)));
+
+        equipCacheNew[requiredLevel][proto->InventoryType].push_back(itemId);
+        questItemIds.insert(itemId);
+        ++count;
+    };
+
+    for (auto const& [_, quest] : sObjectMgr->GetQuestTemplates())
+    {
         if (quest->IsRepeatable())
             continue;
 
-        if (quest->GetQuestLevel() <= 0)
+        int32 const questLevel = quest->GetQuestLevel();
+        if (questLevel <= 0 || static_cast<uint32>(questLevel) > maxLevel)
             continue;
 
         if (quest->GetRequiredClasses())
             continue;
 
-        for (int j = 0; j < quest->GetRewChoiceItemsCount(); j++)
-            if (uint32 itemId = quest->RewardChoiceItemId[j])
-            {
-                ItemTemplate const* proto = sObjectMgr->GetItemTemplate(itemId);
-                if (proto->Class != ITEM_CLASS_WEAPON && proto->Class != ITEM_CLASS_ARMOR)
-                    continue;
-                int requiredLevel = std::max((int)proto->RequiredLevel, quest->GetQuestLevel());
-                equipCacheNew[requiredLevel][proto->InventoryType].push_back(itemId);
-                questItemIds.insert(itemId);
-            }
+        for (uint32 i = 0; i < quest->GetRewItemsCount(); ++i)
+            processQuestItem(quest->RewardItemId[i], questLevel);
 
-        for (int j = 0; j < quest->GetRewItemsCount(); j++)
-            if (uint32 itemId = quest->RewardItemId[j])
-            {
-                ItemTemplate const* proto = sObjectMgr->GetItemTemplate(itemId);
-                if (proto->Class != ITEM_CLASS_WEAPON && proto->Class != ITEM_CLASS_ARMOR)
-                    continue;
-                int requiredLevel = std::max((int)proto->RequiredLevel, quest->GetQuestLevel());
-                equipCacheNew[requiredLevel][proto->InventoryType].push_back(itemId);
-                questItemIds.insert(itemId);
-            }
+        for (uint32 i = 0; i < quest->GetRewChoiceItemsCount(); ++i)
+            processQuestItem(quest->RewardChoiceItemId[i], questLevel);
     }
 
     ItemTemplateContainer const* itemTemplates = sObjectMgr->GetItemTemplateStore();
     for (auto const& itr : *itemTemplates)
     {
         ItemTemplate const* proto = &itr.second;
-        if (!proto)
-            continue;
-        uint32 itemId = proto->ItemId;
 
-        if (questItemIds.find(itemId) != questItemIds.end())
+        if (proto->Class != ITEM_CLASS_WEAPON && proto->Class != ITEM_CLASS_ARMOR)
+            continue;
+
+        if (proto->Quality > ITEM_QUALITY_ARTIFACT)
+            continue;
+
+        uint32 const itemId = proto->ItemId;
+        if (questItemIds.contains(itemId))
             continue;
 
         if (IsTestItem(itemId))
-        {
             continue;
-        }
 
-        if (sPlayerbotAIConfig.unobtainableItems.find(itemId) != sPlayerbotAIConfig.unobtainableItems.end())
+        if (sPlayerbotAIConfig.unobtainableItems.contains(itemId))
+            continue;
+
+        if (!GetViableSlots(static_cast<InventoryType>(proto->InventoryType)))
             continue;
 
         equipCacheNew[proto->RequiredLevel][proto->InventoryType].push_back(itemId);
+        ++count;
     }
+
+    LOG_INFO("server.loading", ">> Cached total {} equipment entries in {} ms", count, GetMSTimeDiffToNow(oldMSTime));
+    LOG_INFO("server.loading", " ");
 }
 
 void RandomItemMgr::BuildCacheAmmo()
