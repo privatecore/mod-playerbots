@@ -150,43 +150,43 @@ void RandomItemMgr::InitPredicates()
 
 void RandomItemMgr::InitViableSlots()
 {
-    auto addSlot = [&](InventoryType type, EquipmentSlots slot)
+    auto addEquipmentSlot = [&](InventoryType type, EquipmentSlots slot)
     {
         viableSlots[type].push_back(slot);
     };
 
-    addSlot(INVTYPE_HEAD,           EQUIPMENT_SLOT_HEAD);
-    addSlot(INVTYPE_NECK,           EQUIPMENT_SLOT_NECK);
-    addSlot(INVTYPE_SHOULDERS,      EQUIPMENT_SLOT_SHOULDERS);
-    addSlot(INVTYPE_BODY,           EQUIPMENT_SLOT_BODY);
-    addSlot(INVTYPE_CHEST,          EQUIPMENT_SLOT_CHEST);
-    addSlot(INVTYPE_ROBE,           EQUIPMENT_SLOT_CHEST);
-    addSlot(INVTYPE_WAIST,          EQUIPMENT_SLOT_WAIST);
-    addSlot(INVTYPE_LEGS,           EQUIPMENT_SLOT_LEGS);
-    addSlot(INVTYPE_FEET,           EQUIPMENT_SLOT_FEET);
-    addSlot(INVTYPE_WRISTS,         EQUIPMENT_SLOT_WRISTS);
-    addSlot(INVTYPE_HANDS,          EQUIPMENT_SLOT_HANDS);
-    addSlot(INVTYPE_FINGER,         EQUIPMENT_SLOT_FINGER1);
-    addSlot(INVTYPE_FINGER,         EQUIPMENT_SLOT_FINGER2);
-    addSlot(INVTYPE_TRINKET,        EQUIPMENT_SLOT_TRINKET1);
-    addSlot(INVTYPE_TRINKET,        EQUIPMENT_SLOT_TRINKET2);
+    addEquipmentSlot(INVTYPE_HEAD,           EQUIPMENT_SLOT_HEAD);
+    addEquipmentSlot(INVTYPE_NECK,           EQUIPMENT_SLOT_NECK);
+    addEquipmentSlot(INVTYPE_SHOULDERS,      EQUIPMENT_SLOT_SHOULDERS);
+    addEquipmentSlot(INVTYPE_BODY,           EQUIPMENT_SLOT_BODY);
+    addEquipmentSlot(INVTYPE_CHEST,          EQUIPMENT_SLOT_CHEST);
+    addEquipmentSlot(INVTYPE_ROBE,           EQUIPMENT_SLOT_CHEST);
+    addEquipmentSlot(INVTYPE_WAIST,          EQUIPMENT_SLOT_WAIST);
+    addEquipmentSlot(INVTYPE_LEGS,           EQUIPMENT_SLOT_LEGS);
+    addEquipmentSlot(INVTYPE_FEET,           EQUIPMENT_SLOT_FEET);
+    addEquipmentSlot(INVTYPE_WRISTS,         EQUIPMENT_SLOT_WRISTS);
+    addEquipmentSlot(INVTYPE_HANDS,          EQUIPMENT_SLOT_HANDS);
+    addEquipmentSlot(INVTYPE_FINGER,         EQUIPMENT_SLOT_FINGER1);
+    addEquipmentSlot(INVTYPE_FINGER,         EQUIPMENT_SLOT_FINGER2);
+    addEquipmentSlot(INVTYPE_TRINKET,        EQUIPMENT_SLOT_TRINKET1);
+    addEquipmentSlot(INVTYPE_TRINKET,        EQUIPMENT_SLOT_TRINKET2);
 
-    addSlot(INVTYPE_WEAPON,         EQUIPMENT_SLOT_MAINHAND);
-    addSlot(INVTYPE_2HWEAPON,       EQUIPMENT_SLOT_MAINHAND);
-    addSlot(INVTYPE_WEAPONMAINHAND, EQUIPMENT_SLOT_MAINHAND);
+    addEquipmentSlot(INVTYPE_WEAPON,         EQUIPMENT_SLOT_MAINHAND);
+    addEquipmentSlot(INVTYPE_2HWEAPON,       EQUIPMENT_SLOT_MAINHAND);
+    addEquipmentSlot(INVTYPE_WEAPONMAINHAND, EQUIPMENT_SLOT_MAINHAND);
 
-    addSlot(INVTYPE_WEAPON,         EQUIPMENT_SLOT_OFFHAND);
-    addSlot(INVTYPE_WEAPONOFFHAND,  EQUIPMENT_SLOT_OFFHAND);
-    addSlot(INVTYPE_SHIELD,         EQUIPMENT_SLOT_OFFHAND);
-    addSlot(INVTYPE_HOLDABLE,       EQUIPMENT_SLOT_OFFHAND);
+    addEquipmentSlot(INVTYPE_WEAPON,         EQUIPMENT_SLOT_OFFHAND);
+    addEquipmentSlot(INVTYPE_WEAPONOFFHAND,  EQUIPMENT_SLOT_OFFHAND);
+    addEquipmentSlot(INVTYPE_SHIELD,         EQUIPMENT_SLOT_OFFHAND);
+    addEquipmentSlot(INVTYPE_HOLDABLE,       EQUIPMENT_SLOT_OFFHAND);
 
-    addSlot(INVTYPE_RANGED,         EQUIPMENT_SLOT_RANGED);
-    addSlot(INVTYPE_THROWN,         EQUIPMENT_SLOT_RANGED);
-    addSlot(INVTYPE_RANGEDRIGHT,    EQUIPMENT_SLOT_RANGED);
-    addSlot(INVTYPE_RELIC,          EQUIPMENT_SLOT_RANGED);
+    addEquipmentSlot(INVTYPE_RANGED,         EQUIPMENT_SLOT_RANGED);
+    addEquipmentSlot(INVTYPE_THROWN,         EQUIPMENT_SLOT_RANGED);
+    addEquipmentSlot(INVTYPE_RANGEDRIGHT,    EQUIPMENT_SLOT_RANGED);
+    addEquipmentSlot(INVTYPE_RELIC,          EQUIPMENT_SLOT_RANGED);
 
-    addSlot(INVTYPE_TABARD,         EQUIPMENT_SLOT_TABARD);
-    addSlot(INVTYPE_CLOAK,          EQUIPMENT_SLOT_BACK);
+    addEquipmentSlot(INVTYPE_TABARD,         EQUIPMENT_SLOT_TABARD);
+    addEquipmentSlot(INVTYPE_CLOAK,          EQUIPMENT_SLOT_BACK);
 }
 
 void RandomItemMgr::InitWeightLinks()
