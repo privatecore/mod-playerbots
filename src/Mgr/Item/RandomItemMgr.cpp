@@ -2157,7 +2157,9 @@ void RandomItemMgr::BuildCacheEquip()
 {
     uint32 const oldMSTime = getMSTime();
 
-    uint32 maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
+    uint32 const maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
+
+    LOG_INFO("server.loading", "Building equipment cache for {} levels...", maxLevel);
 
     ItemTemplateContainer const* itemTemplates = sObjectMgr->GetItemTemplateStore();
 
@@ -2305,7 +2307,7 @@ void RandomItemMgr::BuildCacheAmmo()
 {
     uint32 const oldMSTime = getMSTime();
 
-    uint32 maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
+    uint32 const maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
 
     LOG_INFO("server.loading", "Building ammo cache for {} levels...", maxLevel);
 
@@ -2404,7 +2406,7 @@ void RandomItemMgr::BuildCacheFood()
 {
     uint32 const oldMSTime = getMSTime();
 
-    uint32 maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
+    uint32 const maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
 
     LOG_INFO("server.loading", "Building food cache for {} levels...", maxLevel);
 
@@ -2510,7 +2512,7 @@ void RandomItemMgr::BuildCachePotion()
 {
     uint32 const oldMSTime = getMSTime();
 
-    uint32 maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
+    uint32 const maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
 
     LOG_INFO("server.loading", "Building potion cache for {} levels...", maxLevel);
 
