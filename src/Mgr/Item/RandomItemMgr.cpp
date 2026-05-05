@@ -132,7 +132,9 @@ void RandomItemMgr::InitWeaponProficiency()
                 continue;
 
             // Weapon proficiencies in WotLK are class-based, not race-based,
-            // so using RACE_HUMAN here is acceptable as a placeholder.
+            // so using RACE_HUMAN here is acceptable as a placeholder. Otherwise,
+            // method GetSkillRaceClassInfo should be splitted into two separate
+            // methods for race and class.
             if (GetSkillRaceClassInfo(skillId, RACE_HUMAN, cls))
                 m_weaponProficiency[cls] |= (1u << subClass);
         }
@@ -338,12 +340,15 @@ void RandomItemMgr::BuildCacheRandomItem()
     {
         ItemTemplate const* proto = &itr.second;
 
+        // skip items with no level or sell price
         if (!proto->ItemLevel || !proto->SellPrice)
             continue;
 
+        // skip temporary/expiring items
         if (proto->Duration & 0x80000000)
             continue;
 
+        // skip test items by name
         char const* itemName = proto->Name1.c_str();
         if (strstri(itemName, "qa") || strstri(itemName, "test") || strstri(itemName, "deprecated"))
             continue;
@@ -427,15 +432,19 @@ bool RandomItemMgr::CanEquipItem(ItemTemplate const* proto, uint32 level)
     if (!proto)
         return false;
 
+    // skip items whose required level exceeds the bot's level
     if (proto->RequiredLevel && proto->RequiredLevel > level)
         return false;
 
+    // skip temporary/expiring items
     if (proto->Duration & 0x80000000)
         return false;
 
-    if (proto->Bonding == BIND_QUEST_ITEM || proto->Bonding == BIND_WHEN_USE)
+    // skip use-bound and quest-bound items
+    if (proto->Bonding > BIND_WHEN_EQUIPPED)
         return false;
 
+    // skip items with no viable equip slot
     if (!GetViableSlots(static_cast<InventoryType>(proto->InventoryType)))
         return false;
 
@@ -789,17 +798,19 @@ bool RandomItemMgr::ShouldEquipWeaponForSpec(ItemTemplate const* proto, uint8 pl
 
 bool RandomItemMgr::CanEquipArmor(ItemTemplate const* proto, uint8 clazz, uint32 level)
 {
+    // skip null proto or invalid class
     if (!proto || clazz >= MAX_CLASSES)
         return false;
 
+    // skip non-armor and out-of-range armor subclasses
     if (proto->Class != ITEM_CLASS_ARMOR || proto->SubClass >= MAX_ITEM_SUBCLASS_ARMOR)
         return false;
 
-    // validate InventoryType maps to a real slot before anything else
+    // skip items with no viable equip slot
     if (!GetViableSlots(static_cast<InventoryType>(proto->InventoryType)))
         return false;
 
-    // special case for tabard
+    // skip stats check for tabards - always equippable
     if (proto->InventoryType == INVTYPE_TABARD)
         return true;
 
@@ -818,10 +829,11 @@ bool RandomItemMgr::CanEquipArmor(ItemTemplate const* proto, uint8 clazz, uint32
         return ITEM_SUBCLASS_ARMOR_CLOTH; // mage/warlock/priest
     }();
 
+    // skip armor of wrong subclass (cloaks are exempt)
     if (proto->InventoryType != INVTYPE_CLOAK && proto->SubClass != requiredSubClass)
         return false;
 
-    // skip stats calculation for poor/normal items
+    // skip stats calculation for poor/normal quality items (grey/white)
     if (proto->Quality <= ITEM_QUALITY_NORMAL)
         return true;
 
@@ -831,7 +843,7 @@ bool RandomItemMgr::CanEquipArmor(ItemTemplate const* proto, uint8 clazz, uint32
 
     for (uint8 j = 0; j < MAX_ITEM_PROTO_STATS; ++j)
     {
-        // for ItemStatValue != 0
+        // skip items with no stats value
         if (!proto->ItemStat[j].ItemStatValue)
             continue;
 
@@ -843,16 +855,19 @@ bool RandomItemMgr::CanEquipArmor(ItemTemplate const* proto, uint8 clazz, uint32
 
 bool RandomItemMgr::CanEquipWeapon(ItemTemplate const* proto, uint8 clazz)
 {
+    // skip null proto or invalid class
     if (!proto || clazz >= MAX_CLASSES)
         return false;
 
+    // skip non-weapon and out-of-range weapon subclasses
     if (proto->Class != ITEM_CLASS_WEAPON || proto->SubClass >= MAX_ITEM_SUBCLASS_WEAPON)
         return false;
 
-    // validate InventoryType maps to a real slot before class proficiency check
+    // skip items with no viable equip slot
     if (!GetViableSlots(static_cast<InventoryType>(proto->InventoryType)))
         return false;
 
+    // skip weapons the class has no proficiency for
     return (m_weaponProficiency[clazz] & (1u << proto->SubClass)) != 0;
 }
 
@@ -2174,21 +2189,26 @@ void RandomItemMgr::BuildCacheEquip()
     {
         ItemTemplate const* proto = &itr.second;
 
+        // skip non-equipment classes
         if (proto->Class != ITEM_CLASS_WEAPON && proto->Class != ITEM_CLASS_ARMOR)
             continue;
 
+        // skip artifact and above quality
         if (proto->Quality > ITEM_QUALITY_ARTIFACT)
             continue;
 
+        // skip items with no viable equip slot
         auto const* slots = GetViableSlots(static_cast<InventoryType>(proto->InventoryType));
         if (!slots)
             continue;
 
         for (uint8 clazz = CLASS_WARRIOR; clazz < MAX_CLASSES; ++clazz)
         {
+            // skip non-playable classes
             if (((1u << (clazz - 1)) & CLASSMASK_ALL_PLAYABLE) == 0)
                 continue;
 
+            // skip classes that cannot use this item
             if ((proto->AllowableClass & (1u << (clazz - 1))) == 0)
                 continue;
 
@@ -2199,12 +2219,15 @@ void RandomItemMgr::BuildCacheEquip()
 
             for (uint32 level = 1; level <= maxLevel; ++level)
             {
+                // skip if item cannot be equipped at this level
                 if (!CanEquipItem(proto, level))
                     continue;
 
+                // skip weapons the class cannot use
                 if (proto->Class == ITEM_CLASS_WEAPON && !weaponOK)
                     continue;
 
+                // skip armor the class cannot use at this level bracket
                 if (proto->Class == ITEM_CLASS_ARMOR)
                 {
                     if ((level < 40 && !armorOKBelow40Lvl) || (level >= 40 && !armorOKAbove40Lvl))
@@ -2250,6 +2273,7 @@ void RandomItemMgr::BuildCacheEquipNew()
 
     auto processQuestItem = [&](uint32 itemId, int32 itemQuestLevel)
     {
+        // skip empty or already-processed item ids
         if (!itemId || questItemIds.contains(itemId))
             return;
 
@@ -2257,9 +2281,11 @@ void RandomItemMgr::BuildCacheEquipNew()
         if (!proto)
             return;
 
+        // skip non-equipment classes
         if (proto->Class != ITEM_CLASS_WEAPON && proto->Class != ITEM_CLASS_ARMOR)
             return;
 
+        // skip items with no viable equip slot
         if (!GetViableSlots(static_cast<InventoryType>(proto->InventoryType)))
             return;
 
@@ -2273,13 +2299,16 @@ void RandomItemMgr::BuildCacheEquipNew()
 
     for (auto const& [_, quest] : sObjectMgr->GetQuestTemplates())
     {
+        // skip repeatable quests
         if (quest->IsRepeatable())
             continue;
 
+        // skip quests with invalid or out-of-range level
         int32 const questLevel = quest->GetQuestLevel();
         if (questLevel <= 0 || static_cast<uint32>(questLevel) > maxLevel)
             continue;
 
+        // skip class-restricted quests
         if (quest->GetRequiredClasses())
             continue;
 
@@ -2295,22 +2324,28 @@ void RandomItemMgr::BuildCacheEquipNew()
     {
         ItemTemplate const* proto = &itr.second;
 
+        // skip non-equipment classes
         if (proto->Class != ITEM_CLASS_WEAPON && proto->Class != ITEM_CLASS_ARMOR)
             continue;
 
+        // skip artifact and above quality
         if (proto->Quality > ITEM_QUALITY_ARTIFACT)
             continue;
 
+        // skip items already added from quests
         uint32 const itemId = proto->ItemId;
         if (questItemIds.contains(itemId))
             continue;
 
+        // skip test/internal items
         if (IsTestItem(itemId))
             continue;
 
+        // skip items flagged as unobtainable
         if (sPlayerbotAIConfig.unobtainableItems.contains(itemId))
             continue;
 
+        // skip items with no viable equip slot
         if (!GetViableSlots(static_cast<InventoryType>(proto->InventoryType)))
             continue;
 
@@ -2346,24 +2381,31 @@ void RandomItemMgr::BuildCacheAmmo()
     {
         ItemTemplate const* proto = &itr.second;
 
+        // skip non-projectile items
         if (proto->Class != ITEM_CLASS_PROJECTILE)
             continue;
 
+        // skip non-arrow and non-bullet subclasses
         if (proto->SubClass != ITEM_SUBCLASS_ARROW && proto->SubClass != ITEM_SUBCLASS_BULLET)
             continue;
 
+        // skip deprecated items
         if (proto->HasFlag(ITEM_FLAG_DEPRECATED))
             continue;
 
+        // skip temporary/expiring items
         if (proto->Duration & 0x80000000)
             continue;
 
+        // skip zone- or map-restricted items
         if (proto->Area || proto->Map)
             continue;
 
+        // skip items with no required level
         if (proto->RequiredLevel == 0)
             continue;
 
+        // skip items with no damage value
         if (proto->Damage[0].DamageMin == 0.0f)
             continue;
 
@@ -2385,6 +2427,7 @@ void RandomItemMgr::BuildCacheAmmo()
     {
         for (AmmoEntry const& ammo : ammoItems)
         {
+            // skip ammo above bot's current level
             if (ammo.requiredLevel > level)
                 continue;
 
@@ -2436,34 +2479,41 @@ void RandomItemMgr::BuildCacheFood()
     for (auto const& itr : *itemTemplates)
     {
         ItemTemplate const* proto = &itr.second;
-        if (!proto)
-            continue;
 
+        // skip non-consumable items
         if (proto->Class != ITEM_CLASS_CONSUMABLE)
             continue;
 
+        // skip non-food and non-consumable subclasses
         if (proto->SubClass != ITEM_SUBCLASS_FOOD && proto->SubClass != ITEM_SUBCLASS_CONSUMABLE)
             continue;
 
+        // skip bound items
         if (proto->Bonding != NO_BIND)
             continue;
 
+        // skip deprecated items
         if (proto->HasFlag(ITEM_FLAG_DEPRECATED))
             continue;
 
+        // skip temporary/expiring items
         if (proto->Duration & 0x80000000)
             continue;
 
+        // skip items requiring a profession skill
         if (proto->RequiredSkill)
             continue;
 
+        // skip zone-, map-, city-rank-, or pvp-rank-restricted items
         if (proto->Area || proto->Map || proto->RequiredCityRank || proto->RequiredHonorRank)
             continue;
 
+        // skip items that are neither food nor drink
         if (proto->Spells[0].SpellCategory != SPELL_CATEGORY_FOOD &&
             proto->Spells[0].SpellCategory != SPELL_CATEGORY_DRINK)
             continue;
 
+        // skip items above max bot level
         uint32 requiredLevel = proto->RequiredLevel;
         if (requiredLevel > maxLevel)
             continue;
@@ -2471,6 +2521,7 @@ void RandomItemMgr::BuildCacheFood()
         uint32 category = proto->Spells[0].SpellCategory;
         for (uint32 level = 1; level <= maxLevel + 1; level += 10)
         {
+            // skip items outside the level bucket window
             if (requiredLevel && (requiredLevel > level || requiredLevel < level - MAX_FOOD_LEVEL_DELTA))
                 continue;
 
@@ -2543,27 +2594,35 @@ void RandomItemMgr::BuildCachePotion()
     {
         ItemTemplate const* proto = &itr.second;
 
+        // skip non-consumable items
         if (proto->Class != ITEM_CLASS_CONSUMABLE)
             continue;
 
+        // skip non-potion and non-flask subclasses
         if (proto->SubClass != ITEM_SUBCLASS_POTION && proto->SubClass != ITEM_SUBCLASS_FLASK)
             continue;
 
+        // skip bound items
         if (proto->Bonding != NO_BIND)
             continue;
 
+        // skip deprecated items
         if (proto->HasFlag(ITEM_FLAG_DEPRECATED))
             continue;
 
+        // skip temporary/expiring items
         if (proto->Duration & 0x80000000)
             continue;
 
+        // skip class-restricted potions
         if (proto->AllowableClass != 0xFFFFFFFF)
             continue;
 
+        // skip items requiring a profession skill
         if (proto->RequiredSkill)
             continue;
 
+        // skip zone-, map-, city-rank-, or pvp-rank-restricted items
         if (proto->Area || proto->Map || proto->RequiredCityRank || proto->RequiredHonorRank)
             continue;
 
@@ -2571,6 +2630,7 @@ void RandomItemMgr::BuildCachePotion()
         if (!spellInfo)
             continue;
 
+        // skip potions whose primary effect is not heal or energize
         if (spellInfo->Effects[EFFECT_0].Effect != SPELL_EFFECT_HEAL &&
             spellInfo->Effects[EFFECT_0].Effect != SPELL_EFFECT_ENERGIZE)
             continue;
@@ -2587,9 +2647,11 @@ void RandomItemMgr::BuildCachePotion()
             }
         }
 
+        // skip potions with secondary spell effects
         if (hasOtherEffects)
             continue;
 
+        // skip items above max bot level
         uint32 requiredLevel = proto->RequiredLevel;
         if (requiredLevel > maxLevel)
             continue;
@@ -2597,6 +2659,7 @@ void RandomItemMgr::BuildCachePotion()
         uint32 effect = spellInfo->Effects[EFFECT_0].Effect;
         for (uint32 level = std::max(1u, requiredLevel); level <= maxLevel; ++level)
         {
+            // skip levels outside the potion relevance window
             if (level > MAX_POTION_LEVEL_DELTA && level - requiredLevel > MAX_POTION_LEVEL_DELTA)
                 break;
 
@@ -2634,30 +2697,38 @@ void RandomItemMgr::BuildCacheTrade()
     {
         ItemTemplate const* proto = &itr.second;
 
+        // skip non-trade-goods
         if (proto->Class != ITEM_CLASS_TRADE_GOODS)
             continue;
 
+        // skip bound items
         if (proto->Bonding != NO_BIND)
             continue;
 
+        // skip deprecated items
         if (proto->HasFlag(ITEM_FLAG_DEPRECATED))
             continue;
 
+        // skip temporary/expiring items
         if (proto->Duration & 0x80000000)
             continue;
 
+        // skip items requiring a profession skill
         if (proto->RequiredSkill)
             continue;
 
+        // skip items above max bot level
         uint32 requiredLevel = proto->RequiredLevel;
         if (requiredLevel > maxLevel)
             continue;
 
         for (uint32 level = 1; level <= maxLevel + 1; level += 10)
         {
+            // skip items whose item level is below the current bucket
             if (proto->ItemLevel < level)
                 continue;
 
+            // skip items outside the level bucket window
             if (requiredLevel && (requiredLevel > level || requiredLevel < level - MAX_TRADE_LEVEL_DELTA))
                 continue;
 
@@ -2723,18 +2794,23 @@ void RandomItemMgr::BuildCacheRarity()
     {
         ItemTemplate const* proto = &itr.second;
 
+        // skip poor quality items (grey)
         if (proto->Quality == ITEM_QUALITY_POOR)
             continue;
 
+        // skip deprecated items
         if (proto->HasFlag(ITEM_FLAG_DEPRECATED))
             continue;
 
+        // skip temporary/expiring items
         if (proto->Duration & 0x80000000)
             continue;
 
+        // skip items with no item level
         if (proto->ItemLevel == 0)
             continue;
 
+        // skip test items by name
         char const* itemName = proto->Name1.c_str();
         if (strstri(itemName, "qa") || strstri(itemName, "test") || strstri(itemName, "deprecated"))
             continue;
@@ -2797,6 +2873,7 @@ void RandomItemMgr::BuildCacheRarity()
         if (!result)
             continue;
 
+        // skip items with negligible drop chance
         float const rarity = result->Fetch()[0].Get<float>();
         if (rarity <= 0.01f)
             continue;
