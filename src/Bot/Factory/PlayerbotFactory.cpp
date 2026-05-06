@@ -447,7 +447,7 @@ void PlayerbotFactory::Init()
             continue;
         }
 
-        if (sRandomItemMgr.IsTestItem(gemId))
+        if (sRandomItemMgr.IsInternalItem(proto))
         {
            continue;
         }

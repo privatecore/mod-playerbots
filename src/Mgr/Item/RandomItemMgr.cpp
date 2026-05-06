@@ -13,29 +13,6 @@
 char* strstri(char const* str1, char const* str2);
 std::unordered_set<uint32> RandomItemMgr::itemCache;
 
-static uint32 GetWeaponSkillId(uint32 subClass)
-{
-    switch (subClass)
-    {
-        case ITEM_SUBCLASS_WEAPON_AXE:      return SKILL_AXES;
-        case ITEM_SUBCLASS_WEAPON_AXE2:     return SKILL_2H_AXES;
-        case ITEM_SUBCLASS_WEAPON_BOW:      return SKILL_BOWS;
-        case ITEM_SUBCLASS_WEAPON_GUN:      return SKILL_GUNS;
-        case ITEM_SUBCLASS_WEAPON_MACE:     return SKILL_MACES;
-        case ITEM_SUBCLASS_WEAPON_MACE2:    return SKILL_2H_MACES;
-        case ITEM_SUBCLASS_WEAPON_POLEARM:  return SKILL_POLEARMS;
-        case ITEM_SUBCLASS_WEAPON_SWORD:    return SKILL_SWORDS;
-        case ITEM_SUBCLASS_WEAPON_SWORD2:   return SKILL_2H_SWORDS;
-        case ITEM_SUBCLASS_WEAPON_STAFF:    return SKILL_STAVES;
-        case ITEM_SUBCLASS_WEAPON_FIST:     return SKILL_FIST_WEAPONS;
-        case ITEM_SUBCLASS_WEAPON_DAGGER:   return SKILL_DAGGERS;
-        case ITEM_SUBCLASS_WEAPON_THROWN:   return SKILL_THROWN;
-        case ITEM_SUBCLASS_WEAPON_CROSSBOW: return SKILL_CROSSBOWS;
-        case ITEM_SUBCLASS_WEAPON_WAND:     return SKILL_WANDS;
-        default:                            return SKILL_NONE;
-    }
-}
-
 class RandomItemGuildTaskPredicate : public RandomItemPredicate
 {
 public:
@@ -114,6 +91,29 @@ RandomItemMgr::~RandomItemMgr()
         delete pair.second;
 
     predicates.clear();
+}
+
+static uint32 GetWeaponSkillId(uint32 subClass)
+{
+    switch (subClass)
+    {
+        case ITEM_SUBCLASS_WEAPON_AXE:      return SKILL_AXES;
+        case ITEM_SUBCLASS_WEAPON_AXE2:     return SKILL_2H_AXES;
+        case ITEM_SUBCLASS_WEAPON_BOW:      return SKILL_BOWS;
+        case ITEM_SUBCLASS_WEAPON_GUN:      return SKILL_GUNS;
+        case ITEM_SUBCLASS_WEAPON_MACE:     return SKILL_MACES;
+        case ITEM_SUBCLASS_WEAPON_MACE2:    return SKILL_2H_MACES;
+        case ITEM_SUBCLASS_WEAPON_POLEARM:  return SKILL_POLEARMS;
+        case ITEM_SUBCLASS_WEAPON_SWORD:    return SKILL_SWORDS;
+        case ITEM_SUBCLASS_WEAPON_SWORD2:   return SKILL_2H_SWORDS;
+        case ITEM_SUBCLASS_WEAPON_STAFF:    return SKILL_STAVES;
+        case ITEM_SUBCLASS_WEAPON_FIST:     return SKILL_FIST_WEAPONS;
+        case ITEM_SUBCLASS_WEAPON_DAGGER:   return SKILL_DAGGERS;
+        case ITEM_SUBCLASS_WEAPON_THROWN:   return SKILL_THROWN;
+        case ITEM_SUBCLASS_WEAPON_CROSSBOW: return SKILL_CROSSBOWS;
+        case ITEM_SUBCLASS_WEAPON_WAND:     return SKILL_WANDS;
+        default:                            return SKILL_NONE;
+    }
 }
 
 void RandomItemMgr::InitWeaponProficiency()
@@ -349,8 +349,7 @@ void RandomItemMgr::BuildCacheRandomItem()
             continue;
 
         // skip test items by name
-        char const* itemName = proto->Name1.c_str();
-        if (strstri(itemName, "qa") || strstri(itemName, "test") || strstri(itemName, "deprecated"))
+        if (IsInternalItem(proto))
             continue;
 
         uint32 level = proto->ItemLevel;
@@ -502,13 +501,14 @@ bool RandomItemMgr::CheckItemStats(uint8 clazz, uint8 sp, uint8 ap, uint8 tank)
 {
     switch (clazz)
     {
-        case CLASS_PRIEST:
         case CLASS_MAGE:
+        case CLASS_PRIEST:
         case CLASS_WARLOCK:
             // pure casters: must have sp, and sp must dominate
             if (!sp || ap > sp || tank > sp)
                 return false;
             break;
+        case CLASS_DEATH_KNIGHT:
         case CLASS_PALADIN:
         case CLASS_WARRIOR:
             // pure melee/tank: must have ap and tank, sp must not dominate
@@ -522,8 +522,8 @@ bool RandomItemMgr::CheckItemStats(uint8 clazz, uint8 sp, uint8 ap, uint8 tank)
                 return false;
             break;
         default:
-            // CLASS_SHAMAN, CLASS_DRUID, CLASS_DEATH_KNIGHT - hybrid classes,
-            // accept any item that has at least one relevant stat
+            // CLASS_SHAMAN, CLASS_DRUID - hybrid classes, accept any item that
+            // has at least one relevant stat
             break;
     }
 
@@ -999,43 +999,18 @@ void RandomItemMgr::BuildCacheItemInfo()
     ItemTemplateContainer const* itemTemplate = sObjectMgr->GetItemTemplateStore();
     LOG_INFO("playerbots", "Calculating stat weights for {} items...", itemTemplate->size());
 
-    PlayerbotsDatabaseTransaction trans = PlayerbotsDatabase.BeginTransaction();
+    /*PlayerbotsDatabaseTransaction trans = PlayerbotsDatabase.BeginTransaction();
 
     for (auto const& itr : *itemTemplate)
     {
         ItemTemplate const* proto = &itr.second;
 
-        // skip deprecated items
-        if (proto->HasFlag(ITEM_FLAG_DEPRECATED))
-        {
-            itemForTest.insert(proto->ItemId);
-            continue;
-        }
-
-        // skip test items
-        char const* name = proto->Name1.c_str();
-        if (strstr(name, "Monster ")    ||  // 574
-            strstr(name, "Test")        ||  // 427 -- "(Test)", "Test "
-            strstr(name, "Deprecated ") ||  // 399
-            strstr(name, "[PH]")        ||  // 138
-            strstr(name, "TEST")        ||  // 108 -- "(TEST)", "TEST ", " TEST", "(JEFFTEST)"
-            strstr(name, "Unused ")     ||  // 19
-            strstr(name, "zzOLD")       ||  // 11
-            strstr(name, "(test)")      ||  // 8
-            strstr(name, "(OLD)")       ||  // 7
-            strstr(name, "QR")          ||  // 5
-            strstr(name, "2200 "))          // 4
-        {
-            itemForTest.insert(proto->ItemId);
-            continue;
-        }
-
-        // skip items with rank/rep requirements
-        /*if (proto->RequiredHonorRank > 0 ||
-            proto->RequiredSkillRank > 0 ||
-            proto->RequiredCityRank > 0 ||
-            proto->RequiredReputationRank > 0)
-            continue;*/
+        // // skip items with rank/rep requirements
+        // if (proto->RequiredHonorRank > 0 ||
+        //     proto->RequiredSkillRank > 0 ||
+        //     proto->RequiredCityRank > 0 ||
+        //     proto->RequiredReputationRank > 0)
+        //     continue;
 
         // if (proto->RequiredHonorRank > 0 || proto->RequiredSkillRank > 0 || proto->RequiredCityRank > 0)
         //     continue;
@@ -1307,7 +1282,7 @@ void RandomItemMgr::BuildCacheItemInfo()
         // itemInfoCache[cacheInfo.itemId] = std::move(cacheInfo);
     }
 
-    PlayerbotsDatabase.CommitTransaction(trans);
+    PlayerbotsDatabase.CommitTransaction(trans);*/
 }
 
 uint32 RandomItemMgr::CalculateStatWeight(ItemTemplate const* proto, uint8 playerclass, uint8 spec)
@@ -2197,6 +2172,10 @@ void RandomItemMgr::BuildCacheEquip()
         if (proto->Quality > ITEM_QUALITY_ARTIFACT)
             continue;
 
+        // skip test/internal items
+        if (IsInternalItem(proto))
+            continue;
+
         // skip items with no viable equip slot
         auto const* slots = GetViableSlots(static_cast<InventoryType>(proto->InventoryType));
         if (!slots)
@@ -2338,7 +2317,7 @@ void RandomItemMgr::BuildCacheEquipNew()
             continue;
 
         // skip test/internal items
-        if (IsTestItem(itemId))
+        if (IsInternalItem(proto))
             continue;
 
         // skip items flagged as unobtainable
@@ -2389,12 +2368,12 @@ void RandomItemMgr::BuildCacheAmmo()
         if (proto->SubClass != ITEM_SUBCLASS_ARROW && proto->SubClass != ITEM_SUBCLASS_BULLET)
             continue;
 
-        // skip deprecated items
-        if (proto->HasFlag(ITEM_FLAG_DEPRECATED))
-            continue;
-
         // skip temporary/expiring items
         if (proto->Duration & 0x80000000)
+            continue;
+
+        // skip test/internal items
+        if (IsInternalItem(proto))
             continue;
 
         // skip zone- or map-restricted items
@@ -2485,19 +2464,19 @@ void RandomItemMgr::BuildCacheFood()
             continue;
 
         // skip non-food and non-consumable subclasses
-        if (proto->SubClass != ITEM_SUBCLASS_FOOD && proto->SubClass != ITEM_SUBCLASS_CONSUMABLE)
+        if (proto->SubClass != ITEM_SUBCLASS_CONSUMABLE && proto->SubClass != ITEM_SUBCLASS_FOOD)
             continue;
 
         // skip bound items
         if (proto->Bonding != NO_BIND)
             continue;
 
-        // skip deprecated items
-        if (proto->HasFlag(ITEM_FLAG_DEPRECATED))
-            continue;
-
         // skip temporary/expiring items
         if (proto->Duration & 0x80000000)
+            continue;
+
+        // skip test/internal items
+        if (IsInternalItem(proto))
             continue;
 
         // skip items requiring a profession skill
@@ -2606,12 +2585,12 @@ void RandomItemMgr::BuildCachePotion()
         if (proto->Bonding != NO_BIND)
             continue;
 
-        // skip deprecated items
-        if (proto->HasFlag(ITEM_FLAG_DEPRECATED))
-            continue;
-
         // skip temporary/expiring items
         if (proto->Duration & 0x80000000)
+            continue;
+
+        // skip test/internal items
+        if (IsInternalItem(proto))
             continue;
 
         // skip class-restricted potions
@@ -2705,12 +2684,12 @@ void RandomItemMgr::BuildCacheTrade()
         if (proto->Bonding != NO_BIND)
             continue;
 
-        // skip deprecated items
-        if (proto->HasFlag(ITEM_FLAG_DEPRECATED))
-            continue;
-
         // skip temporary/expiring items
         if (proto->Duration & 0x80000000)
+            continue;
+
+        // skip test/internal items
+        if (IsInternalItem(proto))
             continue;
 
         // skip items requiring a profession skill
@@ -2798,21 +2777,16 @@ void RandomItemMgr::BuildCacheRarity()
         if (proto->Quality == ITEM_QUALITY_POOR)
             continue;
 
-        // skip deprecated items
-        if (proto->HasFlag(ITEM_FLAG_DEPRECATED))
-            continue;
-
         // skip temporary/expiring items
         if (proto->Duration & 0x80000000)
             continue;
 
-        // skip items with no item level
-        if (proto->ItemLevel == 0)
+        // skip test/internal items
+        if (IsInternalItem(proto))
             continue;
 
-        // skip test items by name
-        char const* itemName = proto->Name1.c_str();
-        if (strstri(itemName, "qa") || strstri(itemName, "test") || strstri(itemName, "deprecated"))
+        // skip items with no item level
+        if (proto->ItemLevel == 0)
             continue;
 
         QueryResult result = WorldDatabase.Query(
@@ -2900,7 +2874,26 @@ float RandomItemMgr::GetItemRarity(uint32 itemId)
     return itr != rarityCache.end() ? itr->second : 0.0f;
 }
 
-inline bool IsCraftedBySpellInfo(uint32 itemId, SpellInfo const* spellInfo)
+bool RandomItemMgr::IsInternalItem(ItemTemplate const* proto)
+{
+    if (proto->HasFlag(ITEM_FLAG_DEPRECATED))
+        return true;
+
+    char const* name = proto->Name1.c_str();
+    return strstr(name, "Monster ")    ||  // 574
+           strstr(name, "Test")        ||  // 427 -- "(Test)", "Test ", " Test"
+           strstr(name, "Deprecated ") ||  // 399
+           strstr(name, "[PH]")        ||  // 138
+           strstr(name, "TEST")        ||  // 108 -- "(TEST)", "TEST ", " TEST", "(JEFFTEST)"
+           strstr(name, "Unused ")     ||  // 19
+           strstr(name, "zzOLD")       ||  // 11
+           strstr(name, "(test)")      ||  // 8
+           strstr(name, "(OLD)")       ||  // 7
+           strstr(name, "QR")          ||  // 5
+           strstr(name, "2200 ");          // 4
+}
+
+static bool IsCraftedBySpellInfo(uint32 itemId, SpellInfo const* spellInfo)
 {
     for (uint8 x = 0; x < MAX_SPELL_REAGENTS; ++x)
     {
@@ -2921,7 +2914,7 @@ inline bool IsCraftedBySpellInfo(uint32 itemId, SpellInfo const* spellInfo)
     return false;
 }
 
-inline bool IsCraftedBySpell(uint32 itemId, uint32 spellId)
+static bool IsCraftedBySpell(uint32 itemId, uint32 spellId)
 {
     SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(spellId);
     if (!spellInfo)
@@ -2943,7 +2936,7 @@ inline bool IsCraftedBySpell(uint32 itemId, uint32 spellId)
     return false;
 }
 
-inline bool ContainsInternal(uint32 itemId, uint32 skillId)
+static bool ContainsInternal(uint32 itemId, uint32 skillId)
 {
     for (SkillLineAbilityEntry const* skillLine : GetSkillLineAbilitiesBySkillLine(skillId))
     {

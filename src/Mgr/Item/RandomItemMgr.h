@@ -172,41 +172,40 @@ public:
     void Init();
     void InitAfterAhBot();
 
-    static bool HandleConsoleCommand(ChatHandler* handler, char const* args);
+    [[nodiscard]] static bool HandleConsoleCommand(ChatHandler* handler, char const* args);
 
-    RandomItemList Query(uint32 level, RandomItemType type, RandomItemPredicate* predicate);
+    [[nodiscard]] RandomItemList Query(uint32 level, RandomItemType type, RandomItemPredicate* predicate);
 
-    uint32 GetUpgrade(Player* player, std::string spec, uint8 slot, uint32 quality, uint32 itemId);
-    std::vector<uint32> GetUpgradeList(Player* player, std::string spec, uint8 slot, uint32 quality, uint32 itemId,
-                                       uint32 amount = 1);
+    [[nodiscard]] uint32 GetUpgrade(Player* player, std::string spec, uint8 slot, uint32 quality, uint32 itemId);
+    [[nodiscard]] std::vector<uint32> GetUpgradeList(Player* player, std::string spec, uint8 slot, uint32 quality,
+                                                     uint32 itemId, uint32 amount = 1);
 
-    bool HasStatWeight(uint32 itemId);
+    [[nodiscard]] bool HasStatWeight(uint32 itemId);
     uint32 CalculateStatWeight(ItemTemplate const* proto, uint8 playerclass, uint8 spec);
     uint32 CalculateSingleStatWeight(uint8 playerclass, uint8 spec, std::string stat, uint32 value);
 
-    uint32 GetMinLevelFromCache(uint32 itemId);
-    uint32 GetStatWeight(Player* player, uint32 itemId);
-    uint32 GetLiveStatWeight(Player* player, uint32 itemId);
-    uint32 GetRandomItem(uint32 level, RandomItemType type, RandomItemPredicate* predicate = nullptr);
-    uint32 GetAmmo(uint32 level, uint32 subClass);
-    uint32 GetRandomPotion(uint32 level, uint32 effect);
-    uint32 GetRandomFood(uint32 level, uint32 category);
-    uint32 GetFood(uint32 level, uint32 category);
-    uint32 GetRandomTrade(uint32 level);
-    float GetItemRarity(uint32 itemId);
-    std::vector<uint32> GetCachedEquipments(uint32 requiredLevel, uint32 inventoryType);
+    [[nodiscard]] uint32 GetMinLevelFromCache(uint32 itemId);
+    [[nodiscard]] uint32 GetStatWeight(Player* player, uint32 itemId);
+    [[nodiscard]] uint32 GetLiveStatWeight(Player* player, uint32 itemId);
+    [[nodiscard]] uint32 GetRandomItem(uint32 level, RandomItemType type, RandomItemPredicate* predicate = nullptr);
+    [[nodiscard]] uint32 GetAmmo(uint32 level, uint32 subClass);
+    [[nodiscard]] uint32 GetRandomPotion(uint32 level, uint32 effect);
+    [[nodiscard]] uint32 GetRandomFood(uint32 level, uint32 category);
+    [[nodiscard]] uint32 GetFood(uint32 level, uint32 category);
+    [[nodiscard]] uint32 GetRandomTrade(uint32 level);
+    [[nodiscard]] float GetItemRarity(uint32 itemId);
+    [[nodiscard]] std::vector<uint32> GetCachedEquipments(uint32 requiredLevel, uint32 inventoryType);
 
-    bool CanEquipArmor(ItemTemplate const* proto, uint8 clazz, uint32 level);
-    bool CanEquipWeapon(ItemTemplate const* proto, uint8 clazz);
-    bool ShouldEquipArmorForSpec(ItemTemplate const* proto, uint8 playerclass, uint8 spec);
-    bool ShouldEquipWeaponForSpec(ItemTemplate const* proto, uint8 playerclass, uint8 spec);
+    [[nodiscard]] bool CanEquipArmor(ItemTemplate const* proto, uint8 clazz, uint32 level);
+    [[nodiscard]] bool CanEquipWeapon(ItemTemplate const* proto, uint8 clazz);
+    [[nodiscard]] bool ShouldEquipArmorForSpec(ItemTemplate const* proto, uint8 playerclass, uint8 spec);
+    [[nodiscard]] bool ShouldEquipWeaponForSpec(ItemTemplate const* proto, uint8 playerclass, uint8 spec);
 
-    uint32 GetQuestIdForItem(uint32 itemId);
-    std::vector<uint32> GetQuestIdsForItem(uint32 itemId);
+    [[nodiscard]] uint32 GetQuestIdForItem(uint32 itemId);
+    [[nodiscard]] std::vector<uint32> GetQuestIdsForItem(uint32 itemId);
 
-    bool IsTestItem(uint32 itemId) const { return itemForTest.contains(itemId); }
-
-    static bool IsUsedBySkill(ItemTemplate const* proto, uint32 skillId);
+    [[nodiscard]] static bool IsInternalItem(ItemTemplate const* proto);
+    [[nodiscard]] static bool IsUsedBySkill(ItemTemplate const* proto, uint32 skillId);
 
 private:
     void InitWeaponProficiency();
@@ -214,9 +213,9 @@ private:
     void InitViableSlots();
     void InitWeightLinks();
 
-    bool LoadCacheEquip();
-    bool LoadCacheRandomItem();
-    bool LoadCacheRarity();
+    [[nodiscard]] bool LoadCacheEquip();
+    [[nodiscard]] bool LoadCacheRandomItem();
+    [[nodiscard]] bool LoadCacheRarity();
 
     void BuildCacheRandomItem();
     void BuildCacheEquip();
@@ -231,10 +230,10 @@ private:
     void DebugCacheRandomItem();
 
     void AddItemStats(uint32 mod, uint8& sp, uint8& ap, uint8& tank);
-    bool CheckItemStats(uint8 clazz, uint8 sp, uint8 ap, uint8 tank);
-    bool CanEquipItem(ItemTemplate const* proto, uint32 level);
+    [[nodiscard]] bool CheckItemStats(uint8 clazz, uint8 sp, uint8 ap, uint8 tank);
+    [[nodiscard]] bool CanEquipItem(ItemTemplate const* proto, uint32 level);
 
-    std::vector<EquipmentSlots> const* GetViableSlots(InventoryType type) const;
+    [[nodiscard]] std::vector<EquipmentSlots> const* GetViableSlots(InventoryType type) const;
 
 private:
     RandomItemMgr();
@@ -262,7 +261,6 @@ private:
     std::unordered_map<std::string, uint32> weightStatLink;
     std::unordered_map<std::string, uint32> weightRatingLink;
     std::unordered_map<uint32, ItemInfoEntry> itemInfoCache;
-    std::unordered_set<uint32> itemForTest;
     static std::unordered_set<uint32> itemCache;
     // equipCacheNew[RequiredLevel][InventoryType]
     std::unordered_map<uint32, std::unordered_map<uint32, std::vector<uint32>>> equipCacheNew;
