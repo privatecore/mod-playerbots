@@ -10,7 +10,6 @@
 #include "LootValues.h"
 #include "Playerbots.h"
 
-char* strstri(char const* str1, char const* str2);
 std::unordered_set<uint32> RandomItemMgr::itemCache;
 
 class RandomItemGuildTaskPredicate : public RandomItemPredicate
@@ -152,9 +151,9 @@ void RandomItemMgr::InitPredicates()
 
 void RandomItemMgr::InitViableSlots()
 {
-    auto addEquipmentSlot = [&](InventoryType type, EquipmentSlots slot)
+    auto addEquipmentSlot = [&](InventoryType invType, EquipmentSlots slot)
     {
-        viableSlots[type].push_back(slot);
+        viableSlots[invType].push_back(slot);
     };
 
     addEquipmentSlot(INVTYPE_HEAD,           EQUIPMENT_SLOT_HEAD);
@@ -263,20 +262,25 @@ bool RandomItemMgr::HandleConsoleCommand(ChatHandler* /*handler*/, char const* a
     return false;
 }
 
-std::vector<EquipmentSlots> const* RandomItemMgr::GetViableSlots(InventoryType type) const
+std::vector<EquipmentSlots> const* RandomItemMgr::GetViableSlots(InventoryType invType) const
 {
-    auto it = viableSlots.find(type);
+    auto it = viableSlots.find(invType);
     return it != viableSlots.end() ? &it->second : nullptr;
 }
 
-RandomItemList RandomItemMgr::Query(uint32 level, RandomItemType type, RandomItemPredicate* predicate)
+RandomItemList RandomItemMgr::Query(uint32 level, RandomItemType type, RandomItemPredicate* predicate) const
 {
-    RandomItemList& list = randomItemCache[(level - 1) / 10][type];
+    auto const levelItr = randomItemCache.find((level - 1) / 10);
+    if (levelItr == randomItemCache.end())
+        return {};
+
+    auto const typeItr = levelItr->second.find(type);
+    if (typeItr == levelItr->second.end())
+        return {};
 
     RandomItemList result;
-    for (RandomItemList::iterator i = list.begin(); i != list.end(); ++i)
+    for (uint32 const itemId : typeItr->second)
     {
-        uint32 itemId = *i;
         ItemTemplate const* proto = sObjectMgr->GetItemTemplate(itemId);
         if (!proto)
             continue;
@@ -417,16 +421,16 @@ void RandomItemMgr::DebugCacheRandomItem()
     }
 }
 
-uint32 RandomItemMgr::GetRandomItem(uint32 level, RandomItemType type, RandomItemPredicate* predicate)
+uint32 RandomItemMgr::GetRandomItem(uint32 level, RandomItemType type, RandomItemPredicate* predicate) const
 {
-    RandomItemList const& list = Query(level, type, predicate);
+    RandomItemList const list = Query(level, type, predicate);
     if (list.empty())
         return 0;
 
     return Acore::Containers::SelectRandomContainerElement(list);
 }
 
-bool RandomItemMgr::CanEquipItem(ItemTemplate const* proto, uint32 level)
+bool RandomItemMgr::CanEquipItem(ItemTemplate const* proto, uint32 level) const
 {
     if (!proto)
         return false;
@@ -530,9 +534,19 @@ bool RandomItemMgr::CheckItemStats(uint8 clazz, uint8 sp, uint8 ap, uint8 tank)
     return sp || ap || tank;
 }
 
-std::vector<uint32> RandomItemMgr::GetCachedEquipments(uint32 requiredLevel, uint32 inventoryType)
+RandomItemList const& RandomItemMgr::GetCachedEquipments(uint32 requiredLevel, InventoryType invType) const
 {
-    return equipCacheNew[requiredLevel][inventoryType];
+    static RandomItemList const empty;
+
+    auto const levelItr = equipCacheNew.find(requiredLevel);
+    if (levelItr == equipCacheNew.end())
+        return empty;
+
+    auto const typeItr = levelItr->second.find(invType);
+    if (typeItr == levelItr->second.end())
+        return empty;
+
+    return typeItr->second;
 }
 
 bool RandomItemMgr::ShouldEquipArmorForSpec(ItemTemplate const* proto, uint8 playerclass, uint8 spec)
@@ -796,7 +810,7 @@ bool RandomItemMgr::ShouldEquipWeaponForSpec(ItemTemplate const* proto, uint8 pl
     return false;
 }
 
-bool RandomItemMgr::CanEquipArmor(ItemTemplate const* proto, uint8 clazz, uint32 level)
+bool RandomItemMgr::CanEquipArmor(ItemTemplate const* proto, uint8 clazz, uint32 level) const
 {
     // skip null proto or invalid class
     if (!proto || clazz >= MAX_CLASSES)
@@ -853,7 +867,7 @@ bool RandomItemMgr::CanEquipArmor(ItemTemplate const* proto, uint8 clazz, uint32
     return CheckItemStats(clazz, sp, ap, tank);
 }
 
-bool RandomItemMgr::CanEquipWeapon(ItemTemplate const* proto, uint8 clazz)
+bool RandomItemMgr::CanEquipWeapon(ItemTemplate const* proto, uint8 clazz) const
 {
     // skip null proto or invalid class
     if (!proto || clazz >= MAX_CLASSES)
@@ -1967,7 +1981,7 @@ bool RandomItemMgr::HasStatWeight(uint32 itemId)
     return itr != itemInfoCache.end();
 }
 
-uint32 RandomItemMgr::GetMinLevelFromCache(uint32 itemId)
+uint32 RandomItemMgr::GetMinLevelFromCache(uint32 itemId) const
 {
     auto itr = itemInfoCache.find(itemId);
     if (itr == itemInfoCache.end())
@@ -2265,13 +2279,14 @@ void RandomItemMgr::BuildCacheEquipNew()
             return;
 
         // skip items with no viable equip slot
-        if (!GetViableSlots(static_cast<InventoryType>(proto->InventoryType)))
+        InventoryType invType = static_cast<InventoryType>(proto->InventoryType);
+        if (!GetViableSlots(invType))
             return;
 
         uint32 const requiredLevel = static_cast<uint32>(
             std::max(0, std::max(static_cast<int32>(proto->RequiredLevel), itemQuestLevel)));
 
-        equipCacheNew[requiredLevel][proto->InventoryType].push_back(itemId);
+        equipCacheNew[requiredLevel][invType].push_back(itemId);
         questItemIds.insert(itemId);
         ++count;
     };
@@ -2325,10 +2340,11 @@ void RandomItemMgr::BuildCacheEquipNew()
             continue;
 
         // skip items with no viable equip slot
-        if (!GetViableSlots(static_cast<InventoryType>(proto->InventoryType)))
+        InventoryType invType = static_cast<InventoryType>(proto->InventoryType);
+        if (!GetViableSlots(invType))
             continue;
 
-        equipCacheNew[proto->RequiredLevel][proto->InventoryType].push_back(itemId);
+        equipCacheNew[proto->RequiredLevel][invType].push_back(itemId);
         ++count;
     }
 
@@ -2419,12 +2435,17 @@ void RandomItemMgr::BuildCacheAmmo()
     LOG_INFO("server.loading", " ");
 }
 
-uint32 RandomItemMgr::GetAmmo(uint32 level, uint32 subClass)
+uint32 RandomItemMgr::GetAmmo(uint32 level, uint32 subClass) const
 {
-    std::vector<uint32> const& ammo = ammoCache[level][subClass];
-    if (ammo.empty())
+    auto const levelItr = ammoCache.find(level);
+    if (levelItr == ammoCache.end())
         return 0;
 
+    auto const subItr = levelItr->second.find(subClass);
+    if (subItr == levelItr->second.end() || subItr->second.empty())
+        return 0;
+
+    std::vector<uint32> const& ammo = subItr->second;
     if (!sPlayerbotAIConfig.limitGearExpansion)
         return ammo.front();
 
@@ -2513,48 +2534,17 @@ void RandomItemMgr::BuildCacheFood()
     LOG_INFO("server.loading", " ");
 }
 
-uint32 RandomItemMgr::GetFood(uint32 level, uint32 category)
+uint32 RandomItemMgr::GetRandomFood(uint32 level, uint32 category) const
 {
-    std::vector<uint32> items;
-
-    if (category == SPELL_CATEGORY_FOOD)
-    {
-        if      (level < 5)  items = {787, 117, 4540, 2680};
-        else if (level < 15) items = {2287, 4592, 4541, 21072};
-        else if (level < 25) items = {3770, 16170, 4542, 20074};
-        else if (level < 35) items = {4594, 3771, 1707, 4457};
-        else if (level < 45) items = {4599, 4601, 21552, 17222 /*21030, 16168 */};
-        else if (level < 55) items = {8950, 8952, 8957, 21023 /*21033, 21031 */};
-        else if (level < 65) items = {29292, 27859, 30458, 27662};
-        else if (level < 75) items = {29450, 29451, 29452};
-        else                 items = {35947};
-    }
-    else if (category == SPELL_CATEGORY_DRINK)
-    {
-        if      (level < 5)  items = {159, 117};
-        else if (level < 15) items = {1179, 21072};
-        else if (level < 25) items = {1205};
-        else if (level < 35) items = {1708};
-        else if (level < 45) items = {1645};
-        else if (level < 55) items = {8766};
-        else if (level < 65) items = {28399};
-        else if (level < 75) items = {27860};
-        else                 items = {33445};
-    }
-
-    if (items.empty())
+    auto const levelItr = foodCache.find((level - 1) / 10);
+    if (levelItr == foodCache.end())
         return 0;
 
-    return Acore::Containers::SelectRandomContainerElement(items);
-}
-
-uint32 RandomItemMgr::GetRandomFood(uint32 level, uint32 category)
-{
-    std::vector<uint32> const& food = foodCache[(level - 1) / 10][category];
-    if (food.empty())
+    auto const catItr = levelItr->second.find(category);
+    if (catItr == levelItr->second.end() || catItr->second.empty())
         return 0;
 
-    return Acore::Containers::SelectRandomContainerElement(food);
+    return Acore::Containers::SelectRandomContainerElement(catItr->second);
 }
 
 void RandomItemMgr::BuildCachePotion()
@@ -2651,13 +2641,17 @@ void RandomItemMgr::BuildCachePotion()
     LOG_INFO("server.loading", " ");
 }
 
-uint32 RandomItemMgr::GetRandomPotion(uint32 level, uint32 effect)
+uint32 RandomItemMgr::GetRandomPotion(uint32 level, uint32 effect) const
 {
-    std::vector<uint32> const& potions = potionCache[level][effect];
-    if (potions.empty())
+    auto const levelItr = potionCache.find(level);
+    if (levelItr == potionCache.end())
         return 0;
 
-    return Acore::Containers::SelectRandomContainerElement(potions);
+    auto const effectItr = levelItr->second.find(effect);
+    if (effectItr == levelItr->second.end() || effectItr->second.empty())
+        return 0;
+
+    return Acore::Containers::SelectRandomContainerElement(effectItr->second);
 }
 
 void RandomItemMgr::BuildCacheTrade()
@@ -2720,13 +2714,13 @@ void RandomItemMgr::BuildCacheTrade()
     LOG_INFO("server.loading", " ");
 }
 
-uint32 RandomItemMgr::GetRandomTrade(uint32 level)
+uint32 RandomItemMgr::GetRandomTrade(uint32 level) const
 {
-    std::vector<uint32> const& trade = tradeCache[(level - 1) / 10];
-    if (trade.empty())
+    auto const itr = tradeCache.find((level - 1) / 10);
+    if (itr == tradeCache.end() || itr->second.empty())
         return 0;
 
-    return Acore::Containers::SelectRandomContainerElement(trade);
+    return Acore::Containers::SelectRandomContainerElement(itr->second);
 }
 
 bool RandomItemMgr::LoadCacheRarity()
@@ -2868,7 +2862,7 @@ void RandomItemMgr::BuildCacheRarity()
     LOG_INFO("server.loading", " ");
 }
 
-float RandomItemMgr::GetItemRarity(uint32 itemId)
+float RandomItemMgr::GetItemRarity(uint32 itemId) const
 {
     auto const itr = rarityCache.find(itemId);
     return itr != rarityCache.end() ? itr->second : 0.0f;
