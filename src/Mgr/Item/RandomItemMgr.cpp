@@ -7,7 +7,6 @@
 
 #include "DBCStores.h"
 #include "ItemTemplate.h"
-#include "LootValues.h"
 #include "Playerbots.h"
 
 std::unordered_set<uint32> RandomItemMgr::itemCache;
@@ -1631,10 +1630,13 @@ uint32 RandomItemMgr::CalculateStatWeight(ItemTemplate const* proto, uint8 playe
     statWeight += attackPower;
 
     // handle negative stats
-    if (basicStatsWeight < 0 && (abs(basicStatsWeight) >= statWeight))
-        statWeight = 0;
+    if (basicStatsWeight < 0)
+    {
+        uint32 const absVal = static_cast<uint32>(abs(basicStatsWeight));
+        statWeight = (absVal >= statWeight) ? 0 : statWeight - absVal;
+    }
     else
-        statWeight += basicStatsWeight;
+        statWeight += static_cast<uint32>(basicStatsWeight);
 
     return statWeight;
 }
@@ -1817,9 +1819,9 @@ uint32 RandomItemMgr::GetUpgrade(Player* player, std::string spec, uint8 slot, u
         }
 
         // skip no stats trinkets
-        if (info.weights[specId] == 1 && info.slot == EQUIPMENT_SLOT_NECK || info.slot == EQUIPMENT_SLOT_TRINKET1 ||
+        if (info.weights[specId] == 1 && (info.slot == EQUIPMENT_SLOT_NECK || info.slot == EQUIPMENT_SLOT_TRINKET1 ||
             info.slot == EQUIPMENT_SLOT_TRINKET2 || info.slot == EQUIPMENT_SLOT_FINGER1 ||
-            info.slot == EQUIPMENT_SLOT_FINGER2)
+            info.slot == EQUIPMENT_SLOT_FINGER2))
             continue;
 
         // check if item stat score is the best among class specs
