@@ -887,8 +887,6 @@ bool RandomItemMgr::CanEquipWeapon(ItemTemplate const* proto, uint8 clazz) const
 
 void RandomItemMgr::BuildCacheItemInfo()
 {
-    //uint32 maxLevel = sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL); //not used, line marked for removal.
-
     // load weightscales
     LOG_INFO("playerbots", "Loading weightscales info");
 
@@ -960,58 +958,63 @@ void RandomItemMgr::BuildCacheItemInfo()
         return;
     }
 
-    // vendor items
-    LOG_INFO("playerbots", "Loading vendor item list...");
+    /**
+     * DEADCODE: Remove or rewrite the code below in the next refactor. Also
+     *           move weightscales loading operations into separate methods.
+     */
 
-    std::set<uint32> vendorItems;
-    vendorItems.clear();
-    if (QueryResult result = WorldDatabase.Query("SELECT item FROM npc_vendor"))
-    {
-        do
-        {
-            Field* fields = result->Fetch();
-            int32 entry = fields[0].Get<int32>();
-            if (entry <= 0)
-                continue;
+    // // vendor items
+    // LOG_INFO("playerbots", "Loading vendor item list...");
 
-            vendorItems.insert(entry);
-        } while (result->NextRow());
-    }
+    // std::set<uint32> vendorItems;
+    // vendorItems.clear();
+    // if (QueryResult result = WorldDatabase.Query("SELECT item FROM npc_vendor"))
+    // {
+    //     do
+    //     {
+    //         Field* fields = result->Fetch();
+    //         int32 entry = fields[0].Get<int32>();
+    //         if (entry <= 0)
+    //             continue;
 
-    LOG_INFO("playerbots", "Loaded {} vendor items...", vendorItems.size());
+    //         vendorItems.insert(entry);
+    //     } while (result->NextRow());
+    // }
 
-    // calculate drop source
-    LOG_INFO("playerbots", "Loading loot templates...");
-    DropMap* dropMap = new DropMap;
+    // LOG_INFO("playerbots", "Loaded {} vendor items...", vendorItems.size());
 
-    if (CreatureTemplateContainer const* creatures = sObjectMgr->GetCreatureTemplates())
-    {
-        for (CreatureTemplateContainer::const_iterator itr = creatures->begin(); itr != creatures->end(); ++itr)
-        {
-            uint32 sEntry = itr->first;
-            if (LootTemplateAccess const* lTemplateA =
-                    DropMapValue::GetLootTemplate(ObjectGuid::Create<HighGuid::Unit>(sEntry, uint32(1)), LOOT_CORPSE))
-                for (auto const& lItem : lTemplateA->Entries)
-                    dropMap->insert(std::make_pair(lItem->itemid, sEntry));
-        }
-    }
+    // // calculate drop source
+    // LOG_INFO("playerbots", "Loading loot templates...");
+    // DropMap* dropMap = new DropMap;
 
-    if (GameObjectTemplateContainer const* gameobjects = sObjectMgr->GetGameObjectTemplates())
-    {
-        for (auto const& itr : *gameobjects)
-        {
-            uint32 sEntry = itr.first;
-            if (LootTemplateAccess const* lTemplateA = DropMapValue::GetLootTemplate(
-                    ObjectGuid::Create<HighGuid::GameObject>(sEntry, uint32(1)), LOOT_CORPSE))
-                for (auto const& lItem : lTemplateA->Entries)
-                    dropMap->insert(std::make_pair(lItem->itemid, sEntry));
-        }
-    }
+    // if (CreatureTemplateContainer const* creatures = sObjectMgr->GetCreatureTemplates())
+    // {
+    //     for (CreatureTemplateContainer::const_iterator itr = creatures->begin(); itr != creatures->end(); ++itr)
+    //     {
+    //         uint32 sEntry = itr->first;
+    //         if (LootTemplateAccess const* lTemplateA =
+    //                 DropMapValue::GetLootTemplate(ObjectGuid::Create<HighGuid::Unit>(sEntry, uint32(1)), LOOT_CORPSE))
+    //             for (auto const& lItem : lTemplateA->Entries)
+    //                 dropMap->insert(std::make_pair(lItem->itemid, sEntry));
+    //     }
+    // }
 
-    LOG_INFO("playerbots", "Loaded {} loot templates...", dropMap->size());
+    // if (GameObjectTemplateContainer const* gameobjects = sObjectMgr->GetGameObjectTemplates())
+    // {
+    //     for (auto const& itr : *gameobjects)
+    //     {
+    //         uint32 sEntry = itr.first;
+    //         if (LootTemplateAccess const* lTemplateA = DropMapValue::GetLootTemplate(
+    //                 ObjectGuid::Create<HighGuid::GameObject>(sEntry, uint32(1)), LOOT_CORPSE))
+    //             for (auto const& lItem : lTemplateA->Entries)
+    //                 dropMap->insert(std::make_pair(lItem->itemid, sEntry));
+    //     }
+    // }
 
-    ItemTemplateContainer const* itemTemplate = sObjectMgr->GetItemTemplateStore();
-    LOG_INFO("playerbots", "Calculating stat weights for {} items...", itemTemplate->size());
+    // LOG_INFO("playerbots", "Loaded {} loot templates...", dropMap->size());
+
+    // ItemTemplateContainer const* itemTemplate = sObjectMgr->GetItemTemplateStore();
+    // LOG_INFO("playerbots", "Calculating stat weights for {} items...", itemTemplate->size());
 
     /*PlayerbotsDatabaseTransaction trans = PlayerbotsDatabase.BeginTransaction();
 
