@@ -2531,13 +2531,20 @@ void RandomItemMgr::BuildCacheFood()
             continue;
 
         uint32 category = proto->Spells[0].SpellCategory;
-        for (uint32 level = 1; level <= maxLevel + 1; level += 10)
+        for (uint32 level = 1; level <= maxLevel; level += 10)
         {
-            // skip items outside the level bucket window
-            if (requiredLevel && (requiredLevel > level || requiredLevel < level - MAX_FOOD_LEVEL_DELTA))
-                continue;
+            if (requiredLevel)
+            {
+                // skip items above the level bucket
+                if (requiredLevel > level)
+                    continue;
 
-            foodCache[level / 10][category].push_back(itr.first);
+                // skip items below the level bucket window
+                if (level > MAX_FOOD_LEVEL_DELTA && requiredLevel < level - MAX_FOOD_LEVEL_DELTA)
+                    continue;
+            }
+
+            foodCache[(level - 1) / 10][category].push_back(itr.first);
             ++count;
         }
     }
@@ -2548,7 +2555,9 @@ void RandomItemMgr::BuildCacheFood()
 
 uint32 RandomItemMgr::GetRandomFood(uint32 level, uint32 category) const
 {
-    auto const levelItr = foodCache.find((level - 1) / 10);
+    uint32 const bucket = (level - 1) / 10;
+
+    auto const levelItr = foodCache.find(bucket);
     if (levelItr == foodCache.end())
         return 0;
 
@@ -2707,17 +2716,24 @@ void RandomItemMgr::BuildCacheTrade()
         if (requiredLevel > maxLevel)
             continue;
 
-        for (uint32 level = 1; level <= maxLevel + 1; level += 10)
+        for (uint32 level = 1; level <= maxLevel; level += 10)
         {
             // skip items whose item level is below the current bucket
             if (proto->ItemLevel < level)
                 continue;
 
-            // skip items outside the level bucket window
-            if (requiredLevel && (requiredLevel > level || requiredLevel < level - MAX_TRADE_LEVEL_DELTA))
-                continue;
+            if (requiredLevel)
+            {
+                // skip items above the level bucket
+                if (requiredLevel > level)
+                    continue;
 
-            tradeCache[level / 10].push_back(itr.first);
+                // skip items below the level bucket window
+                if (level > MAX_TRADE_LEVEL_DELTA && requiredLevel < level - MAX_TRADE_LEVEL_DELTA)
+                    continue;
+            }
+
+            tradeCache[(level - 1) / 10].push_back(itr.first);
             ++count;
         }
     }
@@ -2728,7 +2744,9 @@ void RandomItemMgr::BuildCacheTrade()
 
 uint32 RandomItemMgr::GetRandomTrade(uint32 level) const
 {
-    auto const itr = tradeCache.find((level - 1) / 10);
+    uint32 const bucket = (level - 1) / 10;
+
+    auto const itr = tradeCache.find(bucket);
     if (itr == tradeCache.end() || itr->second.empty())
         return 0;
 
@@ -2747,6 +2765,7 @@ bool RandomItemMgr::LoadCacheRarity()
     if (!result)
     {
         LOG_WARN("server.loading", ">> Loaded 0 rarity items. DB table `playerbots_rarity_cache` is empty!");
+        LOG_INFO("server.loading", " ");
         return false;
     }
 
