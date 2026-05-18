@@ -206,6 +206,7 @@ public:
     [[nodiscard]] std::vector<uint32> GetQuestIdsForItem(uint32 itemId);
 
     [[nodiscard]] static bool IsInternalItem(ItemTemplate const* proto);
+    [[nodiscard]] static bool IsValidItem(ItemTemplate const* proto);
     [[nodiscard]] static bool IsUsedBySkill(ItemTemplate const* proto, uint32 skillId);
 
 private:

@@ -344,16 +344,12 @@ void RandomItemMgr::BuildCacheRandomItem()
     {
         ItemTemplate const* proto = &itr.second;
 
-        // skip items with no level or sell price
-        if (!proto->ItemLevel || !proto->SellPrice)
+        // skip items that fail basic validatoin (level, duration, flags, etc.)
+        if (!IsValidItem(proto))
             continue;
 
-        // skip temporary/expiring items
-        if (proto->Duration & 0x80000000)
-            continue;
-
-        // skip test items by name
-        if (IsInternalItem(proto))
+        // skip items with no sell price
+        if (proto->SellPrice == 0)
             continue;
 
         uint32 level = proto->ItemLevel;
@@ -437,10 +433,6 @@ bool RandomItemMgr::CanEquipItem(ItemTemplate const* proto, uint32 level) const
 
     // skip items whose required level exceeds the bot's level
     if (proto->RequiredLevel && proto->RequiredLevel > level)
-        return false;
-
-    // skip temporary/expiring items
-    if (proto->Duration & 0x80000000)
         return false;
 
     // skip use-bound and quest-bound items
@@ -853,7 +845,7 @@ bool RandomItemMgr::CanEquipArmor(ItemTemplate const* proto, uint8 clazz, uint32
         return false;
 
     // skip stats calculation for poor/normal quality items (grey/white)
-    if (proto->Quality <= ITEM_QUALITY_NORMAL)
+    if (proto->Quality < ITEM_QUALITY_UNCOMMON)
         return true;
 
     uint8 sp = 0;
@@ -2194,12 +2186,12 @@ void RandomItemMgr::BuildCacheEquip()
         if (proto->Class != ITEM_CLASS_WEAPON && proto->Class != ITEM_CLASS_ARMOR)
             continue;
 
-        // skip artifact and above quality
-        if (proto->Quality > ITEM_QUALITY_ARTIFACT)
+        // skip poor, legendary, artifact and heirloom quality
+        if (proto->Quality > ITEM_QUALITY_EPIC)
             continue;
 
-        // skip test/internal items
-        if (IsInternalItem(proto))
+        // skip items that fail basic validatoin (level, duration, flags, etc.)
+        if (!IsValidItem(proto))
             continue;
 
         // skip items with no viable equip slot
@@ -2290,6 +2282,14 @@ void RandomItemMgr::BuildCacheEquipNew()
         if (proto->Class != ITEM_CLASS_WEAPON && proto->Class != ITEM_CLASS_ARMOR)
             return;
 
+        // skip legendary, artifact and heirloom quality
+        if (proto->Quality > ITEM_QUALITY_EPIC)
+            return;
+
+        // skip items that fail basic validatoin (level, duration, flags, etc.)
+        if (!IsValidItem(proto))
+            return;
+
         // skip items with no viable equip slot
         InventoryType invType = static_cast<InventoryType>(proto->InventoryType);
         if (!GetViableSlots(invType))
@@ -2334,21 +2334,16 @@ void RandomItemMgr::BuildCacheEquipNew()
         if (proto->Class != ITEM_CLASS_WEAPON && proto->Class != ITEM_CLASS_ARMOR)
             continue;
 
-        // skip artifact and above quality
-        if (proto->Quality > ITEM_QUALITY_ARTIFACT)
+        // skip legendary, artifact and heirloom quality
+        if (proto->Quality > ITEM_QUALITY_EPIC)
             continue;
 
         // skip items already added from quests
-        uint32 const itemId = proto->ItemId;
-        if (questItemIds.contains(itemId))
+        if (questItemIds.contains(proto->ItemId))
             continue;
 
-        // skip test/internal items
-        if (IsInternalItem(proto))
-            continue;
-
-        // skip items flagged as unobtainable
-        if (sPlayerbotAIConfig.unobtainableItems.contains(itemId))
+        // skip items that fail basic validatoin (level, duration, flags, etc.)
+        if (!IsValidItem(proto))
             continue;
 
         // skip items with no viable equip slot
@@ -2356,7 +2351,7 @@ void RandomItemMgr::BuildCacheEquipNew()
         if (!GetViableSlots(invType))
             continue;
 
-        equipCacheNew[proto->RequiredLevel][invType].push_back(itemId);
+        equipCacheNew[proto->RequiredLevel][invType].push_back(proto->ItemId);
         ++count;
     }
 
@@ -2396,19 +2391,14 @@ void RandomItemMgr::BuildCacheAmmo()
         if (proto->SubClass != ITEM_SUBCLASS_ARROW && proto->SubClass != ITEM_SUBCLASS_BULLET)
             continue;
 
-        // skip temporary/expiring items
-        if (proto->Duration & 0x80000000)
-            continue;
-
-        // skip test/internal items
-        if (IsInternalItem(proto))
-            continue;
-
-        // skip zone- or map-restricted items
-        if (proto->Area || proto->Map)
+        // skip items that fail basic validatoin (level, duration, flags, etc.)
+        if (!IsValidItem(proto))
             continue;
 
         // skip items with no required level
+        // NOTE: This filters only three items: 3464 (Feathered Arrow), 3465
+        //       (Exploding Shot), and 4960 (Flash Pellet). In theory we could
+        //       set RequiredLevel = ItemLevel and use that instead.
         if (proto->RequiredLevel == 0)
             continue;
 
@@ -2504,20 +2494,12 @@ void RandomItemMgr::BuildCacheFood()
         if (proto->Bonding != NO_BIND)
             continue;
 
-        // skip temporary/expiring items
-        if (proto->Duration & 0x80000000)
-            continue;
-
-        // skip test/internal items
-        if (IsInternalItem(proto))
+        // skip items that fail basic validatoin (level, duration, flags, etc.)
+        if (!IsValidItem(proto))
             continue;
 
         // skip items requiring a profession skill
         if (proto->RequiredSkill)
-            continue;
-
-        // skip zone-, map-, city-rank-, or pvp-rank-restricted items
-        if (proto->Area || proto->Map || proto->RequiredCityRank || proto->RequiredHonorRank)
             continue;
 
         // skip items that are neither food nor drink
@@ -2525,11 +2507,15 @@ void RandomItemMgr::BuildCacheFood()
             proto->Spells[0].SpellCategory != SPELL_CATEGORY_DRINK)
             continue;
 
-        // skip items above max bot level
-        uint32 requiredLevel = proto->RequiredLevel;
-        if (requiredLevel > maxLevel)
+        SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(proto->Spells[0].SpellId);
+        if (!spellInfo)
             continue;
 
+        // skip items with spell effect inebriate (alcohol)
+        if (spellInfo->HasEffect(SPELL_EFFECT_INEBRIATE))
+            continue;
+
+        uint32 requiredLevel = proto->RequiredLevel;
         uint32 category = proto->Spells[0].SpellCategory;
         for (uint32 level = 1; level <= maxLevel; level += 10)
         {
@@ -2596,24 +2582,12 @@ void RandomItemMgr::BuildCachePotion()
         if (proto->Bonding != NO_BIND)
             continue;
 
-        // skip temporary/expiring items
-        if (proto->Duration & 0x80000000)
-            continue;
-
-        // skip test/internal items
-        if (IsInternalItem(proto))
-            continue;
-
-        // skip class-restricted potions
-        if (proto->AllowableClass != 0xFFFFFFFF)
+        // skip items that fail basic validatoin (level, duration, flags, etc.)
+        if (!IsValidItem(proto))
             continue;
 
         // skip items requiring a profession skill
         if (proto->RequiredSkill)
-            continue;
-
-        // skip zone-, map-, city-rank-, or pvp-rank-restricted items
-        if (proto->Area || proto->Map || proto->RequiredCityRank || proto->RequiredHonorRank)
             continue;
 
         SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(proto->Spells[0].SpellId);
@@ -2641,11 +2615,7 @@ void RandomItemMgr::BuildCachePotion()
         if (hasOtherEffects)
             continue;
 
-        // skip items above max bot level
         uint32 requiredLevel = proto->RequiredLevel;
-        if (requiredLevel > maxLevel)
-            continue;
-
         uint32 effect = spellInfo->Effects[EFFECT_0].Effect;
         for (uint32 level = std::max(1u, requiredLevel); level <= maxLevel; ++level)
         {
@@ -2699,23 +2669,15 @@ void RandomItemMgr::BuildCacheTrade()
         if (proto->Bonding != NO_BIND)
             continue;
 
-        // skip temporary/expiring items
-        if (proto->Duration & 0x80000000)
-            continue;
-
-        // skip test/internal items
-        if (IsInternalItem(proto))
+        // skip items that fail basic validatoin (level, duration, flags, etc.)
+        if (!IsValidItem(proto))
             continue;
 
         // skip items requiring a profession skill
         if (proto->RequiredSkill)
             continue;
 
-        // skip items above max bot level
         uint32 requiredLevel = proto->RequiredLevel;
-        if (requiredLevel > maxLevel)
-            continue;
-
         for (uint32 level = 1; level <= maxLevel; level += 10)
         {
             // skip items whose item level is below the current bucket
@@ -2917,6 +2879,62 @@ bool RandomItemMgr::IsInternalItem(ItemTemplate const* proto)
            strstr(name, "(OLD)")       ||  // 7
            strstr(name, "QR")          ||  // 5
            strstr(name, "2200 ");          // 4
+}
+
+bool RandomItemMgr::IsValidItem(ItemTemplate const* proto)
+{
+    if (!proto)
+        return false;
+
+    // check items with no item level
+    if (proto->ItemLevel == 0)
+        return false;
+
+    // check items with required level above max level
+    if (proto->RequiredLevel > sPlayerbotAIConfig.randomBotMaxLevel)
+        return false;
+
+    // check temporary/expiring items
+    if (proto->Duration)
+        return false;
+
+    // check area-, or map-restricted items
+    if (proto->Area || proto->Map)
+        return false;
+
+    // check city-rank-, or pvp-rank-restricted items
+    if (proto->RequiredCityRank || proto->RequiredHonorRank)
+        return false;
+
+    // check class-restricted items
+    if ((proto->AllowableClass & CLASSMASK_ALL_PLAYABLE) == 0)
+        return false;
+
+    constexpr uint32 RACEMASK_ALL_PLAYABLE =
+        (1 << (RACE_HUMAN - 1))         |
+        (1 << (RACE_ORC - 1))           |
+        (1 << (RACE_DWARF - 1))         |
+        (1 << (RACE_NIGHTELF - 1))      |
+        (1 << (RACE_UNDEAD_PLAYER - 1)) |
+        (1 << (RACE_TAUREN - 1))        |
+        (1 << (RACE_GNOME - 1))         |
+        (1 << (RACE_TROLL - 1))         |
+        (1 << (RACE_BLOODELF - 1))      |
+        (1 << (RACE_DRAENEI - 1));
+
+    // check race-restricted items
+    if ((proto->AllowableRace & RACEMASK_ALL_PLAYABLE) == 0)
+        return false;
+
+    // check test/internal items
+    if (IsInternalItem(proto))
+        return false;
+
+    // skip items flagged as unobtainable
+    if (sPlayerbotAIConfig.unobtainableItems.contains(proto->ItemId))
+        return false;
+
+    return true;
 }
 
 static bool IsCraftedBySpellInfo(uint32 itemId, SpellInfo const* spellInfo)
