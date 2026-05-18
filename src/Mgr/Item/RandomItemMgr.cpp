@@ -2751,102 +2751,121 @@ void RandomItemMgr::BuildCacheRarity()
 {
     uint32 const oldMSTime = getMSTime();
 
-    ItemTemplateContainer const* itemTemplates = sObjectMgr->GetItemTemplateStore();
-    LOG_INFO("server.loading", "Building rarity cache for {} items...", itemTemplates->size());
+    LOG_INFO("server.loading", "Building items rarity cache...");
+
+    QueryResult result = WorldDatabase.Query(
+        "SELECT item, MAX(q.chance) AS max_chance FROM ( "
+        // <-- creature
+        "SELECT lt.item, "
+        "    AVG(CASE "
+        "        WHEN lt.GroupId = 0 THEN lt.Chance "
+        "        WHEN lt.Chance > 0  THEN lt.Chance "
+        "        ELSE IFNULL(100 - lt.group_sum, 100) / NULLIF(lt.group_zero, 0) "
+        "    END) AS chance "
+        "FROM ( "
+        "    SELECT *, "
+        "        SUM(CASE WHEN Chance > 0 THEN Chance ELSE 0 END) OVER (PARTITION BY entry, GroupId) AS group_sum, "
+        "        SUM(CASE WHEN Chance = 0 THEN 1 ELSE 0 END)      OVER (PARTITION BY entry, GroupId) AS group_zero "
+        "    FROM creature_loot_template WHERE item != 0) lt "
+        "JOIN creature_template ct ON ct.LootId = lt.entry "
+        "JOIN creature c ON c.id1 = ct.entry "
+        "GROUP BY lt.item "
+        "UNION ALL "
+        // <-- gameobject
+        "SELECT lt.item, "
+        "    AVG(CASE "
+        "        WHEN lt.GroupId = 0 THEN lt.Chance "
+        "        WHEN lt.Chance > 0  THEN lt.Chance "
+        "        ELSE IFNULL(100 - lt.group_sum, 100) / NULLIF(lt.group_zero, 0) "
+        "    END) AS chance "
+        "FROM (SELECT *, "
+        "        SUM(CASE WHEN Chance > 0 THEN Chance ELSE 0 END) OVER (PARTITION BY entry, GroupId) AS group_sum, "
+        "        SUM(CASE WHEN Chance = 0 THEN 1 ELSE 0 END)      OVER (PARTITION BY entry, GroupId) AS group_zero "
+        "    FROM gameobject_loot_template WHERE item != 0) lt "
+        "JOIN gameobject_template ct ON ct.data1 = lt.entry "
+        "JOIN gameobject c ON c.id = ct.entry "
+        "GROUP BY lt.item "
+        "UNION ALL "
+        // <-- disenchant
+        "SELECT lt.item, "
+        "    AVG(CASE "
+        "        WHEN lt.GroupId = 0 THEN lt.Chance "
+        "        WHEN lt.Chance > 0  THEN lt.Chance "
+        "        ELSE IFNULL(100 - lt.group_sum, 100) / NULLIF(lt.group_zero, 0) "
+        "    END) AS chance "
+        "FROM (SELECT *, "
+        "        SUM(CASE WHEN Chance > 0 THEN Chance ELSE 0 END) OVER (PARTITION BY entry, GroupId) AS group_sum, "
+        "        SUM(CASE WHEN Chance = 0 THEN 1 ELSE 0 END)      OVER (PARTITION BY entry, GroupId) AS group_zero "
+        "    FROM disenchant_loot_template WHERE item != 0) lt "
+        "JOIN item_template ct ON ct.DisenchantID = lt.entry "
+        "GROUP BY lt.item "
+        "UNION ALL "
+        // <-- fishing
+        "SELECT lt.item, "
+        "    AVG(CASE "
+        "        WHEN lt.GroupId = 0 THEN lt.Chance "
+        "        WHEN lt.Chance > 0  THEN lt.Chance "
+        "        ELSE IFNULL(100 - lt.group_sum, 100) / NULLIF(lt.group_zero, 0) "
+        "    END) AS chance "
+        "FROM (SELECT *, "
+        "        SUM(CASE WHEN Chance > 0 THEN Chance ELSE 0 END) OVER (PARTITION BY entry, GroupId) AS group_sum, "
+        "        SUM(CASE WHEN Chance = 0 THEN 1 ELSE 0 END)      OVER (PARTITION BY entry, GroupId) AS group_zero "
+        "    FROM fishing_loot_template WHERE item != 0) lt "
+        "GROUP BY lt.item "
+        "UNION ALL "
+        // <-- skinning
+        "SELECT lt.item, "
+        "    AVG(CASE "
+        "        WHEN lt.GroupId = 0 THEN lt.Chance "
+        "        WHEN lt.Chance > 0  THEN lt.Chance "
+        "        ELSE IFNULL(100 - lt.group_sum, 100) * IFNULL(1.0 / NULLIF(lt.group_zero, 0), 1) "
+        "    END) AS chance "
+        "FROM (SELECT *, "
+        "       SUM(CASE WHEN Chance > 0 THEN Chance ELSE 0 END) OVER (PARTITION BY entry, GroupId) AS group_sum, "
+        "       SUM(CASE WHEN Chance = 0 THEN 1 ELSE 0 END)      OVER (PARTITION BY entry, GroupId) AS group_zero "
+        "   FROM skinning_loot_template WHERE item != 0) lt "
+        "JOIN creature_template ct ON ct.skinloot = lt.entry "
+        "JOIN creature c ON c.id1 = ct.entry "
+        "GROUP BY lt.item) q GROUP BY item HAVING max_chance > 0.01 ORDER BY item");
+
+    if (!result)
+    {
+        LOG_WARN("server.loading", ">> Cached 0 rarity entries. SQL query result is empty!");
+        LOG_INFO("server.loading", " ");
+        return;
+    }
 
     PlayerbotsDatabaseTransaction trans = PlayerbotsDatabase.BeginTransaction();
 
-    for (auto const& itr : *itemTemplates)
+    do
     {
-        ItemTemplate const* proto = &itr.second;
+        Field* fields = result->Fetch();
+        uint32 itemId = fields[0].Get<uint32>();
+        float  rarity = fields[1].Get<float>();
 
-        // skip poor quality items (grey)
-        if (proto->Quality == ITEM_QUALITY_POOR)
+        ItemTemplate const* proto = sObjectMgr->GetItemTemplate(itemId);
+        if (!proto)
             continue;
 
-        // skip temporary/expiring items
-        if (proto->Duration & 0x80000000)
+        // skip poor, legendary, artifact and heirloom quality
+        // NOTE: There are only 5 items with loot source and above Epic quality:
+        //       Warglaive of Azzinoth (2), Bindings of the Windseeker (2), and
+        //       Shadowfrost Shard. The last two are quest-related items.
+        if (proto->Quality < ITEM_QUALITY_NORMAL || proto->Quality > ITEM_QUALITY_EPIC)
             continue;
 
-        // skip test/internal items
-        if (IsInternalItem(proto))
+        // skip items that fail basic validatoin (level, duration, flags, etc.)
+        if (!IsValidItem(proto))
             continue;
 
-        // skip items with no item level
-        if (proto->ItemLevel == 0)
-            continue;
-
-        QueryResult result = WorldDatabase.Query(
-            "SELECT MAX(q.chance) FROM ( "
-            // <-- creature
-            "SELECT AVG(CASE WHEN lt.groupid = 0 THEN lt.ChanceOrQuestChance "
-            "    WHEN lt.ChanceOrQuestChance > 0 THEN lt.ChanceOrQuestChance "
-            "    ELSE IFNULL(100 - (SELECT SUM(ChanceOrQuestChance) FROM creature_loot_template lt1 "
-            "        WHERE lt1.groupid = lt.groupid AND lt1.entry = lt.entry AND lt1.ChanceOrQuestChance > 0), 100) "
-            "        / (SELECT COUNT(*) FROM creature_loot_template lt1 "
-            "        WHERE lt1.groupid = lt.groupid AND lt1.entry = lt.entry AND lt1.ChanceOrQuestChance = 0) "
-            "    END) chance FROM creature_loot_template lt "
-            "JOIN creature_template ct ON ct.LootId = lt.entry "
-            "JOIN creature c ON c.id1 = ct.entry WHERE lt.item = {0} "
-            "UNION ALL "
-            // <-- gameobject
-            "SELECT AVG(CASE WHEN lt.groupid = 0 THEN lt.ChanceOrQuestChance "
-            "    WHEN lt.ChanceOrQuestChance > 0 THEN lt.ChanceOrQuestChance "
-            "    ELSE IFNULL(100 - (SELECT SUM(ChanceOrQuestChance) FROM gameobject_loot_template lt1 "
-            "        WHERE lt1.groupid = lt.groupid AND lt1.entry = lt.entry AND lt1.ChanceOrQuestChance > 0), 100) "
-            "        / (SELECT COUNT(*) FROM gameobject_loot_template lt1 "
-            "        WHERE lt1.groupid = lt.groupid AND lt1.entry = lt.entry AND lt1.ChanceOrQuestChance = 0) "
-            "    END) chance FROM gameobject_loot_template lt "
-            "JOIN gameobject_template ct ON ct.data1 = lt.entry "
-            "JOIN gameobject c ON c.id1 = ct.entry WHERE lt.item = {0} "
-            "UNION ALL "
-            // <-- disenchant
-            "SELECT AVG(CASE WHEN lt.groupid = 0 THEN lt.ChanceOrQuestChance "
-            "    WHEN lt.ChanceOrQuestChance > 0 THEN lt.ChanceOrQuestChance "
-            "    ELSE IFNULL(100 - (SELECT SUM(ChanceOrQuestChance) FROM disenchant_loot_template lt1 "
-            "        WHERE lt1.groupid = lt.groupid AND lt1.entry = lt.entry AND lt1.ChanceOrQuestChance > 0), 100) "
-            "        / (SELECT COUNT(*) FROM disenchant_loot_template lt1 "
-            "        WHERE lt1.groupid = lt.groupid AND lt1.entry = lt.entry AND lt1.ChanceOrQuestChance = 0) "
-            "    END) chance FROM disenchant_loot_template lt "
-            "JOIN item_template ct ON ct.DisenchantID = lt.entry WHERE lt.item = {0} "
-            "UNION ALL "
-            // <-- fishing
-            "SELECT AVG(CASE WHEN lt.groupid = 0 THEN lt.ChanceOrQuestChance "
-            "    WHEN lt.ChanceOrQuestChance > 0 THEN lt.ChanceOrQuestChance "
-            "    ELSE IFNULL(100 - (SELECT SUM(ChanceOrQuestChance) FROM fishing_loot_template lt1 "
-            "        WHERE lt1.groupid = lt.groupid AND lt1.entry = lt.entry AND lt1.ChanceOrQuestChance > 0), 100) "
-            "        / (SELECT COUNT(*) FROM fishing_loot_template lt1 "
-            "        WHERE lt1.groupid = lt.groupid AND lt1.entry = lt.entry AND lt1.ChanceOrQuestChance = 0) "
-            "    END) chance FROM fishing_loot_template lt WHERE lt.item = {0} "
-            "UNION ALL "
-            // <-- skining
-            "SELECT AVG(CASE WHEN lt.groupid = 0 THEN lt.ChanceOrQuestChance "
-            "    WHEN lt.ChanceOrQuestChance > 0 THEN lt.ChanceOrQuestChance "
-            "    ELSE IFNULL(100 - (SELECT SUM(ChanceOrQuestChance) FROM skinning_loot_template lt1 "
-            "        WHERE lt1.groupid = lt.groupid AND lt1.entry = lt.entry AND lt1.ChanceOrQuestChance > 0), 100) "
-            "        * IFNULL((SELECT 1/COUNT(*) FROM skinning_loot_template lt1 "
-            "        WHERE lt1.groupid = lt.groupid AND lt1.entry = lt.entry AND lt1.ChanceOrQuestChance = 0), 1) "
-            "    END) chance FROM skinning_loot_template lt "
-            "JOIN creature_template ct ON ct.SkinningLootId = lt.entry "
-            "JOIN creature c ON c.id1 = ct.entry WHERE lt.item = {0}) q;",
-            proto->ItemId);
-
-        if (!result)
-            continue;
-
-        // skip items with negligible drop chance
-        float const rarity = result->Fetch()[0].Get<float>();
-        if (rarity <= 0.01f)
-            continue;
-
-        rarityCache[proto->ItemId] = rarity;
+        rarityCache[itemId] = rarity;
 
         PlayerbotsDatabasePreparedStatement* stmt =
             PlayerbotsDatabase.GetPreparedStatement(PLAYERBOTS_INS_RARITY_CACHE);
-        stmt->SetData(0, proto->ItemId);
+        stmt->SetData(0, itemId);
         stmt->SetData(1, rarity);
         trans->Append(stmt);
-    }
+    } while (result->NextRow());
 
     PlayerbotsDatabase.CommitTransaction(trans);
 
