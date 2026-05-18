@@ -129,8 +129,8 @@ void RandomItemMgr::InitWeaponProficiency()
             if (!((1u << (cls - 1)) & CLASSMASK_ALL_PLAYABLE))
                 continue;
 
-            // Weapon proficiencies in WotLK are class-based, not race-based,
-            // so using RACE_HUMAN here is acceptable as a placeholder. Otherwise,
+            // Weapon proficiencies in WotLK are class-based, not race-based, so
+            // using RACE_HUMAN here is acceptable as a placeholder. Otherwise,
             // method GetSkillRaceClassInfo should be splitted into two separate
             // methods for race and class.
             if (GetSkillRaceClassInfo(skillId, RACE_HUMAN, cls))
@@ -305,6 +305,7 @@ bool RandomItemMgr::LoadCacheRandomItem()
     if (!result)
     {
         LOG_WARN("server.loading", ">> Loaded 0 random items. DB table `playerbots_rnditem_cache` is empty!");
+        LOG_INFO("server.loading", " ");
         return false;
     }
 
@@ -383,8 +384,8 @@ void RandomItemMgr::BuildCacheRandomItem()
 void RandomItemMgr::DebugCacheRandomItem()
 {
     // NOTE: Not sure if anyone ever used this data, because it produces a huge
-    // amount of output to the file/console. It might be better to create separate
-    // command and/or method that shows the cache contents on demand.
+    //       amount of output to the file/console. It might be better to create
+    //       separate command that shows the cache contents on demand.
 
     if (!sLog->ShouldLog("playerbots", LogLevel::LOG_LEVEL_DEBUG))
         return;
@@ -2137,6 +2138,7 @@ bool RandomItemMgr::LoadCacheEquip()
     if (!result)
     {
         LOG_WARN("server.loading", ">> Loaded 0 equipment items. DB table `playerbots_equip_cache` is empty!");
+        LOG_INFO("server.loading", " ");
         return false;
     }
 
@@ -2732,7 +2734,7 @@ bool RandomItemMgr::LoadCacheRarity()
 {
     uint32 const oldMSTime = getMSTime();
 
-    LOG_INFO("server.loading", "Loading item rarity cache...");
+    LOG_INFO("server.loading", "Loading items rarity cache...");
 
     PreparedQueryResult result =
         PlayerbotsDatabase.Query(PlayerbotsDatabase.GetPreparedStatement(PLAYERBOTS_SEL_RARITY_CACHE));
@@ -2752,7 +2754,7 @@ bool RandomItemMgr::LoadCacheRarity()
         rarityCache[itemId] = rarity;
     } while (result->NextRow());
 
-    LOG_INFO("server.loading", ">> Loaded {} item rarity records in {} ms", rarityCache.size(),
+    LOG_INFO("server.loading", ">> Loaded {} items rarity records in {} ms", rarityCache.size(),
              GetMSTimeDiffToNow(oldMSTime));
     LOG_INFO("server.loading", " ");
 
