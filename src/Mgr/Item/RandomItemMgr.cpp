@@ -454,8 +454,13 @@ bool RandomItemMgr::CanEquipItem(ItemTemplate const* proto, uint32 level) const
     if (proto->Quality > ITEM_QUALITY_NORMAL)
     {
         uint32 requiredLevel = proto->RequiredLevel;
-        if (!requiredLevel)
-            requiredLevel = GetMinLevelFromCache(proto->ItemId);
+        /*
+         * DEADCODE: Uncomment the code below if BuildCacheItemInfo method will
+         *           process itemInfoCache; otherwise remove it completely.
+         */
+
+        // if (!requiredLevel)
+        //     requiredLevel = GetMinLevelFromCache(proto->ItemId);
 
         if (!requiredLevel)
             requiredLevel = level;
