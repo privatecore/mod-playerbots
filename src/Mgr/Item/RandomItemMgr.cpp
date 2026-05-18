@@ -2881,7 +2881,8 @@ bool RandomItemMgr::IsInternalItem(ItemTemplate const* proto)
         return true;
 
     char const* name = proto->Name1.c_str();
-    return strstr(name, "Monster ")    ||  // 574
+    return strstr(name, "NPC ")        ||  // 4859
+           strstr(name, "Monster ")    ||  // 574
            strstr(name, "Test")        ||  // 427 -- "(Test)", "Test ", " Test"
            strstr(name, "Deprecated ") ||  // 399
            strstr(name, "[PH]")        ||  // 138
