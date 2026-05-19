@@ -1716,13 +1716,13 @@ bool RandomItemMgr::LoadCacheRandomItem()
     do
     {
         Field* fields = result->Fetch();
-        uint32 level  = fields[0].Get<uint32>();
+        uint32 bucket = fields[0].Get<uint32>();
         uint32 type   = fields[1].Get<uint32>();
         uint32 itemId = fields[2].Get<uint32>();
 
         RandomItemType const rit = static_cast<RandomItemType>(type);
 
-        randomItemCache[level][rit].push_back(itemId);
+        randomItemCache[bucket][rit].push_back(itemId);
 
         ++count;
     } while (result->NextRow());
@@ -1787,19 +1787,21 @@ void RandomItemMgr::BuildCacheRandomItem()
         if (proto->SellPrice == 0)
             continue;
 
-        uint32 level = proto->ItemLevel;
+        uint32 const level = proto->ItemLevel;
+        uint32 const bucket = (level - 1) / 10;
+
         for (uint8 type = RANDOM_ITEM_GUILD_TASK; type <= RANDOM_ITEM_GUILD_TASK_REWARD_TRADE_RARE; ++type)
         {
             RandomItemType const rit = static_cast<RandomItemType>(type);
             if (predicates[rit] && !predicates[rit]->Apply(proto))
                 continue;
 
-            randomItemCache[level / 10][rit].push_back(itr.first);
+            randomItemCache[bucket][rit].push_back(itr.first);
             ++count;
 
             PlayerbotsDatabasePreparedStatement* stmt =
                 PlayerbotsDatabase.GetPreparedStatement(PLAYERBOTS_INS_RNDITEM_CACHE);
-            stmt->SetData(0, level / 10);
+            stmt->SetData(0, bucket);
             stmt->SetData(1, type);
             stmt->SetData(2, itr.first);
             trans->Append(stmt);
@@ -2851,26 +2853,24 @@ void RandomItemMgr::DebugCacheRandomItem()
     if (!sLog->ShouldLog("playerbots", LogLevel::LOG_LEVEL_DEBUG))
         return;
 
-    uint32 const maxLevelBucket = sPlayerbotAIConfig.randomBotMaxLevel / 10;
+    uint32 const maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
+    uint32 const maxBucket = (maxLevel - 1) / 10;
 
-    for (uint32 level = 0; level < maxLevelBucket; ++level)
+    for (uint32 bucket = 0; bucket <= maxBucket; ++bucket)
     {
-        auto const levelItr = randomItemCache.find(level);
-        if (levelItr == randomItemCache.end())
+        auto const bucketItr = randomItemCache.find(bucket);
+        if (bucketItr == randomItemCache.end())
             continue;
 
-        for (uint8 type = RANDOM_ITEM_GUILD_TASK; type <= RANDOM_ITEM_GUILD_TASK_REWARD_TRADE_RARE; ++type)
+        uint32 const minLevel = bucket * 10 + 1;
+        uint32 const maxBucketLevel = std::min(maxLevel, minLevel + 9);
+
+        for (auto const& [type, items] : bucketItr->second)
         {
-            auto const typeItr = levelItr->second.find(static_cast<RandomItemType>(type));
-            if (typeItr == levelItr->second.end())
-                continue;
+            LOG_DEBUG("playerbots", "    Bucket {} (levels {}..{}) Type {} - {} random items cached",
+                      bucket, minLevel, maxBucketLevel, type, items.size());
 
-            RandomItemList const& list = typeItr->second;
-
-            LOG_DEBUG("playerbots", "    Level {}..{} Type {} - {} random items cached", level * 10, level * 10 + 9,
-                      type, list.size());
-
-            for (uint32 const itemId : list)
+            for (uint32 const itemId : items)
             {
                 ItemTemplate const* proto = sObjectMgr->GetItemTemplate(itemId);
                 if (!proto)
