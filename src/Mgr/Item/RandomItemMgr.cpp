@@ -16,6 +16,9 @@ class RandomItemGuildTaskPredicate : public RandomItemPredicate
 public:
     bool Apply(ItemTemplate const* proto) override
     {
+        if (!proto)
+            return false;
+
         if (proto->Bonding == BIND_WHEN_PICKED_UP || proto->Bonding == BIND_WHEN_USE ||
             proto->Bonding == BIND_QUEST_ITEM)
             return false;
@@ -41,6 +44,9 @@ public:
 
     bool Apply(ItemTemplate const* proto) override
     {
+        if (!proto)
+            return false;
+
         if (proto->Bonding == BIND_WHEN_PICKED_UP || proto->Bonding == BIND_WHEN_USE ||
             proto->Bonding == BIND_QUEST_ITEM)
             return false;
@@ -397,6 +403,9 @@ bool RandomItemMgr::HasStatWeight(uint32 itemId)
 
 uint32 RandomItemMgr::CalculateStatWeight(ItemTemplate const* proto, uint8 playerclass, uint8 spec)
 {
+    if (!proto)
+        return false;
+
     uint32 statWeight = 0;
     bool isCasterItem = false;
     bool isAttackItem = false;
@@ -976,6 +985,18 @@ float RandomItemMgr::GetItemRarity(uint32 itemId) const
     return itr != rarityCache.end() ? itr->second : 0.0f;
 }
 
+RandomItemList const& RandomItemMgr::GetEquipment(uint32 level, uint8 clazz, uint8 slot, uint32 quality) const
+{
+    static RandomItemList const empty;
+
+    BotEquipKey const key(level, clazz, slot, quality);
+    auto const itr = equipCache.find(key);
+    if (itr == equipCache.end())
+        return empty;
+
+    return itr->second;
+}
+
 RandomItemList const& RandomItemMgr::GetEquipmentNew(uint32 requiredLevel, InventoryType invType) const
 {
     static RandomItemList const empty;
@@ -1005,7 +1026,7 @@ bool RandomItemMgr::CanEquipArmor(ItemTemplate const* proto, uint8 clazz, uint32
     if (!GetViableSlots(static_cast<InventoryType>(proto->InventoryType)))
         return false;
 
-    // skip stats check for tabards - always equippable
+    // skip additional checks for tabards - always equippable
     if (proto->InventoryType == INVTYPE_TABARD)
         return true;
 
@@ -1068,6 +1089,10 @@ bool RandomItemMgr::CanEquipWeapon(ItemTemplate const* proto, uint8 clazz) const
 
 bool RandomItemMgr::ShouldEquipArmorForSpec(ItemTemplate const* proto, uint8 clazz, uint8 spec) const
 {
+    if (!proto)
+        return false;
+
+    // skip additional checks for tabards - always equippable
     if (proto->InventoryType == INVTYPE_TABARD)
         return true;
 
@@ -1142,6 +1167,9 @@ bool RandomItemMgr::ShouldEquipArmorForSpec(ItemTemplate const* proto, uint8 cla
 
 bool RandomItemMgr::ShouldEquipWeaponForSpec(ItemTemplate const* proto, uint8 clazz, uint8 spec) const
 {
+    if (!proto)
+        return false;
+
     WeightScale const& scale = m_weightScales[clazz].at(spec);
     if (!scale.info.id)
         return false;
@@ -1302,6 +1330,9 @@ std::vector<uint32> RandomItemMgr::GetQuestIdsForItem(uint32 itemId) const
 
 bool RandomItemMgr::IsInternalItem(ItemTemplate const* proto)
 {
+    if (!proto)
+        return false;
+
     if (proto->HasFlag(ITEM_FLAG_DEPRECATED))
         return true;
 
