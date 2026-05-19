@@ -185,25 +185,26 @@ public:
     [[nodiscard]] bool HasStatWeight(uint32 itemId);
     [[nodiscard]] uint32 CalculateStatWeight(ItemTemplate const* proto, uint8 playerclass, uint8 spec);
     [[nodiscard]] uint32 CalculateSingleStatWeight(uint8 playerclass, uint8 spec, std::string stat, uint32 value);
-
-    [[nodiscard]] uint32 GetMinLevelFromCache(uint32 itemId) const;
     [[nodiscard]] uint32 GetStatWeight(Player* player, uint32 itemId);
     [[nodiscard]] uint32 GetLiveStatWeight(Player* player, uint32 itemId);
+
+    [[nodiscard]] uint32 GetMinLevelFromCache(uint32 itemId) const;
+
+    [[nodiscard]] RandomItemList const& GetEquipmentNew(uint32 requiredLevel, InventoryType invType) const;
     [[nodiscard]] uint32 GetRandomItem(uint32 level, RandomItemType type, RandomItemPredicate* predicate = nullptr) const;
     [[nodiscard]] uint32 GetAmmo(uint32 level, uint32 subClass) const;
     [[nodiscard]] uint32 GetRandomPotion(uint32 level, uint32 effect) const;
     [[nodiscard]] uint32 GetRandomFood(uint32 level, uint32 category) const;
     [[nodiscard]] uint32 GetRandomTrade(uint32 level) const;
     [[nodiscard]] float GetItemRarity(uint32 itemId) const;
-    [[nodiscard]] RandomItemList const& GetCachedEquipments(uint32 requiredLevel, InventoryType invType) const;
 
     [[nodiscard]] bool CanEquipArmor(ItemTemplate const* proto, uint8 clazz, uint32 level) const;
     [[nodiscard]] bool CanEquipWeapon(ItemTemplate const* proto, uint8 clazz) const;
-    [[nodiscard]] bool ShouldEquipArmorForSpec(ItemTemplate const* proto, uint8 playerclass, uint8 spec);
-    [[nodiscard]] bool ShouldEquipWeaponForSpec(ItemTemplate const* proto, uint8 playerclass, uint8 spec);
+    [[nodiscard]] bool ShouldEquipArmorForSpec(ItemTemplate const* proto, uint8 clazz, uint8 spec) const;
+    [[nodiscard]] bool ShouldEquipWeaponForSpec(ItemTemplate const* proto, uint8 clazz, uint8 spec) const;
 
-    [[nodiscard]] uint32 GetQuestIdForItem(uint32 itemId);
-    [[nodiscard]] std::vector<uint32> GetQuestIdsForItem(uint32 itemId);
+    [[nodiscard]] uint32 GetQuestIdForItem(uint32 itemId) const;
+    [[nodiscard]] std::vector<uint32> GetQuestIdsForItem(uint32 itemId) const;
 
     [[nodiscard]] static bool IsInternalItem(ItemTemplate const* proto);
     [[nodiscard]] static bool IsValidItem(ItemTemplate const* proto);
@@ -232,7 +233,7 @@ private:
     void DebugCacheRandomItem();
 
     static void AddItemStats(uint32 mod, uint8& sp, uint8& ap, uint8& tank);
-    [[nodiscard]] static bool CheckItemStats(uint8 clazz, uint8 sp, uint8 ap, uint8 tank);
+    [[nodiscard]] static bool CanUseItemStats(uint8 clazz, uint8 sp, uint8 ap, uint8 tank);
     [[nodiscard]] bool CanEquipItem(ItemTemplate const* proto, uint32 level) const;
     [[nodiscard]] std::vector<EquipmentSlots> const* GetViableSlots(InventoryType invType) const;
 

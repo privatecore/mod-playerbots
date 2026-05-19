@@ -2181,7 +2181,7 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance)
             {
                 for (InventoryType inventoryType : GetPossibleInventoryTypeListBySlot((EquipmentSlots)slot))
                 {
-                    for (uint32 itemId : sRandomItemMgr.GetCachedEquipments(requiredLevel, inventoryType))
+                    for (uint32 itemId : sRandomItemMgr.GetEquipmentNew(requiredLevel, inventoryType))
                     {
                         uint32 skipProb = 25;
                         if (urand(1, 100) <= skipProb)
