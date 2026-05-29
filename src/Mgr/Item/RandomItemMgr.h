@@ -119,8 +119,8 @@ public:
     bool operator==(BotEquipKey const& other) const { return m_key == other.m_key; }
 
     uint32 level;
-    uint8  clazz;
-    uint8  slot;
+    uint8 clazz;
+    uint8 slot;
     uint32 quality;
 
 private:
