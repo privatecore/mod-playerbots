@@ -903,6 +903,33 @@ uint32 RandomItemMgr::GetMinLevelFromCache(uint32 itemId) const
     return itr->second.minLevel;
 }
 
+RandomItemList const& RandomItemMgr::GetEquipment(uint32 level, uint8 clazz, uint8 slot, uint32 quality) const
+{
+    static RandomItemList const empty;
+
+    BotEquipKey const key(level, clazz, slot, quality);
+    auto const itr = equipCache.find(key);
+    if (itr == equipCache.end())
+        return empty;
+
+    return itr->second;
+}
+
+RandomItemList const& RandomItemMgr::GetEquipmentNew(uint32 requiredLevel, InventoryType invType) const
+{
+    static RandomItemList const empty;
+
+    auto const levelItr = equipCacheNew.find(requiredLevel);
+    if (levelItr == equipCacheNew.end())
+        return empty;
+
+    auto const typeItr = levelItr->second.find(invType);
+    if (typeItr == levelItr->second.end())
+        return empty;
+
+    return typeItr->second;
+}
+
 uint32 RandomItemMgr::GetRandomItem(uint32 level, RandomItemType type, RandomItemPredicate* predicate) const
 {
     RandomItemList const list = Query(level, type, predicate);
@@ -984,33 +1011,6 @@ float RandomItemMgr::GetItemRarity(uint32 itemId) const
 {
     auto const itr = rarityCache.find(itemId);
     return itr != rarityCache.end() ? itr->second : 0.0f;
-}
-
-RandomItemList const& RandomItemMgr::GetEquipment(uint32 level, uint8 clazz, uint8 slot, uint32 quality) const
-{
-    static RandomItemList const empty;
-
-    BotEquipKey const key(level, clazz, slot, quality);
-    auto const itr = equipCache.find(key);
-    if (itr == equipCache.end())
-        return empty;
-
-    return itr->second;
-}
-
-RandomItemList const& RandomItemMgr::GetEquipmentNew(uint32 requiredLevel, InventoryType invType) const
-{
-    static RandomItemList const empty;
-
-    auto const levelItr = equipCacheNew.find(requiredLevel);
-    if (levelItr == equipCacheNew.end())
-        return empty;
-
-    auto const typeItr = levelItr->second.find(invType);
-    if (typeItr == levelItr->second.end())
-        return empty;
-
-    return typeItr->second;
 }
 
 std::vector<uint32> const& RandomItemMgr::GetEnchantmentPool(uint32 entry) const
