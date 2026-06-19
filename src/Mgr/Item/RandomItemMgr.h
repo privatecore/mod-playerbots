@@ -198,6 +198,7 @@ public:
     [[nodiscard]] uint32 GetRandomFood(uint32 level, uint32 category) const;
     [[nodiscard]] uint32 GetRandomTrade(uint32 level) const;
     [[nodiscard]] float GetItemRarity(uint32 itemId) const;
+    [[nodiscard]] std::vector<uint32> const& GetEnchantmentPool(uint32 entry) const;
 
     [[nodiscard]] bool CanEquipArmor(ItemTemplate const* proto, uint8 clazz, uint32 level) const;
     [[nodiscard]] bool CanEquipWeapon(ItemTemplate const* proto, uint8 clazz) const;
@@ -220,6 +221,7 @@ private:
     [[nodiscard]] bool LoadCacheEquip();
     [[nodiscard]] bool LoadCacheRandomItem();
     [[nodiscard]] bool LoadCacheRarity();
+    void LoadEnchantmentPool();
 
     void BuildCacheRandomItem();
     void BuildCacheEquip();
@@ -267,6 +269,9 @@ private:
     std::unordered_map<std::string, uint32> weightStatLink;
     std::unordered_map<std::string, uint32> weightRatingLink;
     std::unordered_map<uint32, ItemInfoEntry> itemInfoCache;
+
+    // enchPoolCache[item_enchantment_template.entry] -> list of enchantment ids
+    std::unordered_map<uint32, std::vector<uint32>> enchPoolCache;
 };
 
 #define sRandomItemMgr RandomItemMgr::instance()
