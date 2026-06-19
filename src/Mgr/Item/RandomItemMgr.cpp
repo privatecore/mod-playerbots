@@ -1106,10 +1106,12 @@ bool RandomItemMgr::ShouldEquipArmorForSpec(ItemTemplate const* proto, uint8 cla
     if (proto->InventoryType == INVTYPE_TABARD)
         return true;
 
-    WeightScale const& scale = m_weightScales[clazz].at(spec);
-    if (!scale.info.id)
+    std::unordered_map<uint8, WeightScale> const& specMap = m_weightScales[clazz];
+    auto const itr = specMap.find(spec);
+    if (itr == specMap.end() || !itr->second.info.id)
         return false;
 
+    WeightScale const& scale = itr->second;
     std::string const& specName = scale.info.name;
     uint32 const subClass = proto->SubClass;
     bool const isHoldable = proto->InventoryType == INVTYPE_HOLDABLE;
@@ -1180,8 +1182,9 @@ bool RandomItemMgr::ShouldEquipWeaponForSpec(ItemTemplate const* proto, uint8 cl
     if (!proto)
         return false;
 
-    WeightScale const& scale = m_weightScales[clazz].at(spec);
-    if (!scale.info.id)
+    std::unordered_map<uint8, WeightScale> const& specMap = m_weightScales[clazz];
+    auto const itr = specMap.find(spec);
+    if (itr == specMap.end() || !itr->second.info.id)
         return false;
 
     bool hasMH = false, hasOH = false, hasRH = false;
@@ -1199,6 +1202,7 @@ bool RandomItemMgr::ShouldEquipWeaponForSpec(ItemTemplate const* proto, uint8 cl
     if (!hasMH && !hasOH && !hasRH)
         return false;
 
+    WeightScale const& scale = itr->second;
     std::string const& specName = scale.info.name;
     uint32 const subClass = proto->SubClass;
 
