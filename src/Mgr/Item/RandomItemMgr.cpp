@@ -916,6 +916,8 @@ RandomItemList const& RandomItemMgr::GetEquipment(uint32 level, uint8 clazz, uin
 {
     static RandomItemList const empty;
 
+    level = NormalizeLevel(level);
+
     BotEquipKey const key(level, clazz, slot, quality);
     auto const itr = equipCache.find(key);
     if (itr == equipCache.end())
@@ -924,11 +926,13 @@ RandomItemList const& RandomItemMgr::GetEquipment(uint32 level, uint8 clazz, uin
     return itr->second;
 }
 
-RandomItemList const& RandomItemMgr::GetEquipmentNew(uint32 requiredLevel, InventoryType invType) const
+RandomItemList const& RandomItemMgr::GetEquipmentNew(uint32 level, InventoryType invType) const
 {
     static RandomItemList const empty;
 
-    auto const levelItr = equipCacheNew.find(requiredLevel);
+    level = NormalizeLevel(level);
+
+    auto const levelItr = equipCacheNew.find(level);
     if (levelItr == equipCacheNew.end())
         return empty;
 
@@ -941,6 +945,8 @@ RandomItemList const& RandomItemMgr::GetEquipmentNew(uint32 requiredLevel, Inven
 
 uint32 RandomItemMgr::GetRandomItem(uint32 level, RandomItemType type, RandomItemPredicate* predicate) const
 {
+    level = NormalizeLevel(level);
+
     RandomItemList const list = Query(level, type, predicate);
     if (list.empty())
         return 0;
@@ -950,6 +956,8 @@ uint32 RandomItemMgr::GetRandomItem(uint32 level, RandomItemType type, RandomIte
 
 uint32 RandomItemMgr::GetAmmo(uint32 level, uint32 subClass) const
 {
+    level = NormalizeLevel(level);
+
     auto const levelItr = ammoCache.find(level);
     if (levelItr == ammoCache.end())
         return 0;
@@ -979,6 +987,8 @@ uint32 RandomItemMgr::GetAmmo(uint32 level, uint32 subClass) const
 
 uint32 RandomItemMgr::GetRandomPotion(uint32 level, uint32 effect) const
 {
+    level = NormalizeLevel(level);
+
     auto const levelItr = potionCache.find(level);
     if (levelItr == potionCache.end())
         return 0;
@@ -992,6 +1002,8 @@ uint32 RandomItemMgr::GetRandomPotion(uint32 level, uint32 effect) const
 
 uint32 RandomItemMgr::GetRandomFood(uint32 level, uint32 category) const
 {
+    level = NormalizeLevel(level);
+
     uint32 const bucket = (level - 1) / 10;
 
     auto const levelItr = foodCache.find(bucket);
@@ -1007,6 +1019,7 @@ uint32 RandomItemMgr::GetRandomFood(uint32 level, uint32 category) const
 
 uint32 RandomItemMgr::GetRandomTrade(uint32 level) const
 {
+    level = NormalizeLevel(level);
     uint32 const bucket = (level - 1) / 10;
 
     auto const itr = tradeCache.find(bucket);
@@ -1381,10 +1394,6 @@ bool RandomItemMgr::IsValidItem(ItemTemplate const* proto)
 
     // check items with no item level
     if (proto->ItemLevel == 0)
-        return false;
-
-    // check items with required level above max level
-    if (proto->RequiredLevel > sPlayerbotAIConfig.randomBotMaxLevel)
         return false;
 
     // check temporary/expiring items
@@ -1865,9 +1874,7 @@ void RandomItemMgr::BuildCacheEquip()
 {
     uint32 const oldMSTime = getMSTime();
 
-    uint32 const maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
-
-    LOG_INFO("server.loading", "Building equipment cache for {} levels...", maxLevel);
+    LOG_INFO("server.loading", "Building equipment cache for {} levels...", DEFAULT_MAX_LEVEL);
 
     ItemTemplateContainer const* itemTemplates = sObjectMgr->GetItemTemplateStore();
 
@@ -1914,7 +1921,7 @@ void RandomItemMgr::BuildCacheEquip()
             armorOKBelow40Lvl = proto->Class == ITEM_CLASS_ARMOR  && CanEquipArmor(proto, clazz, 1);
             armorOKAbove40Lvl = proto->Class == ITEM_CLASS_ARMOR  && CanEquipArmor(proto, clazz, 40);
 
-            for (uint32 level = 1; level <= maxLevel; ++level)
+            for (uint32 level = 1; level <= DEFAULT_MAX_LEVEL; ++level)
             {
                 // skip if item cannot be equipped at this level
                 if (!CanEquipItem(proto, level))
@@ -1961,9 +1968,7 @@ void RandomItemMgr::BuildCacheEquipNew()
 {
     uint32 const oldMSTime = getMSTime();
 
-    uint32 const maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
-
-    LOG_INFO("server.loading", "Building equipment cache (new) for {} levels...", maxLevel);
+    LOG_INFO("server.loading", "Building equipment cache (new) for {} levels...", DEFAULT_MAX_LEVEL);
 
     std::unordered_set<uint32> questItemIds;
     uint32 count = 0;
@@ -2011,7 +2016,7 @@ void RandomItemMgr::BuildCacheEquipNew()
 
         // skip quests with invalid or out-of-range level
         int32 const questLevel = quest->GetQuestLevel();
-        if (questLevel <= 0 || static_cast<uint32>(questLevel) > maxLevel)
+        if (questLevel <= 0 || static_cast<uint32>(questLevel) > DEFAULT_MAX_LEVEL)
             continue;
 
         // skip class-restricted quests
@@ -2480,9 +2485,7 @@ void RandomItemMgr::BuildCacheAmmo()
 {
     uint32 const oldMSTime = getMSTime();
 
-    uint32 const maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
-
-    LOG_INFO("server.loading", "Building ammo cache for {} levels...", maxLevel);
+    LOG_INFO("server.loading", "Building ammo cache for {} levels...", DEFAULT_MAX_LEVEL);
 
     struct AmmoEntry
     {
@@ -2537,7 +2540,7 @@ void RandomItemMgr::BuildCacheAmmo()
     });
 
     uint32 count = 0;
-    for (uint32 level = 1; level <= maxLevel; ++level)
+    for (uint32 level = 1; level <= DEFAULT_MAX_LEVEL; ++level)
     {
         for (AmmoEntry const& ammo : ammoItems)
         {
@@ -2558,9 +2561,7 @@ void RandomItemMgr::BuildCacheFood()
 {
     uint32 const oldMSTime = getMSTime();
 
-    uint32 const maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
-
-    LOG_INFO("server.loading", "Building food cache for {} levels...", maxLevel);
+    LOG_INFO("server.loading", "Building food cache for {} levels...", DEFAULT_MAX_LEVEL);
 
     constexpr uint32 MAX_FOOD_LEVEL_DELTA = 10;
 
@@ -2605,7 +2606,7 @@ void RandomItemMgr::BuildCacheFood()
 
         uint32 requiredLevel = proto->RequiredLevel;
         uint32 category = proto->Spells[0].SpellCategory;
-        for (uint32 level = 1; level <= maxLevel; level += 10)
+        for (uint32 level = 1; level <= DEFAULT_MAX_LEVEL; level += 10)
         {
             if (requiredLevel)
             {
@@ -2631,9 +2632,7 @@ void RandomItemMgr::BuildCachePotion()
 {
     uint32 const oldMSTime = getMSTime();
 
-    uint32 const maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
-
-    LOG_INFO("server.loading", "Building potion cache for {} levels...", maxLevel);
+    LOG_INFO("server.loading", "Building potion cache for {} levels...", DEFAULT_MAX_LEVEL);
 
     constexpr uint32 MAX_POTION_LEVEL_DELTA = 13;
 
@@ -2690,7 +2689,7 @@ void RandomItemMgr::BuildCachePotion()
 
         uint32 requiredLevel = proto->RequiredLevel;
         uint32 effect = spellInfo->Effects[EFFECT_0].Effect;
-        for (uint32 level = std::max(1u, requiredLevel); level <= maxLevel; ++level)
+        for (uint32 level = std::max(1u, requiredLevel); level <= DEFAULT_MAX_LEVEL; ++level)
         {
             // skip levels outside the potion relevance window
             if (level > MAX_POTION_LEVEL_DELTA && level - requiredLevel > MAX_POTION_LEVEL_DELTA)
@@ -2709,9 +2708,7 @@ void RandomItemMgr::BuildCacheTrade()
 {
     uint32 const oldMSTime = getMSTime();
 
-    uint32 const maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
-
-    LOG_INFO("server.loading", "Building trade cache for {} levels...", maxLevel);
+    LOG_INFO("server.loading", "Building trade cache for {} levels...", DEFAULT_MAX_LEVEL);
 
     constexpr uint32 MAX_TRADE_LEVEL_DELTA = 10;
 
@@ -2738,7 +2735,7 @@ void RandomItemMgr::BuildCacheTrade()
             continue;
 
         uint32 requiredLevel = proto->RequiredLevel;
-        for (uint32 level = 1; level <= maxLevel; level += 10)
+        for (uint32 level = 1; level <= DEFAULT_MAX_LEVEL; level += 10)
         {
             // skip items whose item level is below the current bucket
             if (proto->ItemLevel < level)
@@ -2900,8 +2897,7 @@ void RandomItemMgr::DebugCacheRandomItem()
     if (!sLog->ShouldLog("playerbots", LogLevel::LOG_LEVEL_DEBUG))
         return;
 
-    uint32 const maxLevel = sPlayerbotAIConfig.randomBotMaxLevel;
-    uint32 const maxBucket = (maxLevel - 1) / 10;
+    uint32 const maxBucket = (DEFAULT_MAX_LEVEL - 1) / 10;
 
     for (uint32 bucket = 0; bucket <= maxBucket; ++bucket)
     {
@@ -2910,7 +2906,7 @@ void RandomItemMgr::DebugCacheRandomItem()
             continue;
 
         uint32 const minLevel = bucket * 10 + 1;
-        uint32 const maxBucketLevel = std::min(maxLevel, minLevel + 9);
+        uint32 const maxBucketLevel = std::min(minLevel + 9, static_cast<uint32>(DEFAULT_MAX_LEVEL));
 
         for (auto const& [type, items] : bucketItr->second)
         {
@@ -3038,4 +3034,11 @@ std::vector<EquipmentSlots> const* RandomItemMgr::GetViableSlots(InventoryType i
 {
     auto it = viableSlots.find(invType);
     return it != viableSlots.end() ? &it->second : nullptr;
+}
+
+uint32 RandomItemMgr::NormalizeLevel(uint32 level) const
+{
+    uint32 const levelCap = std::min(sPlayerbotAIConfig.randomBotMaxLevel,
+                                     static_cast<uint32>(DEFAULT_MAX_LEVEL));
+    return std::min(level, levelCap);
 }

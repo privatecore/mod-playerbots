@@ -192,7 +192,7 @@ public:
     [[nodiscard]] uint32 GetMinLevelFromCache(uint32 itemId) const;
 
     [[nodiscard]] RandomItemList const& GetEquipment(uint32 level, uint8 clazz, uint8 slot, uint32 quality) const;
-    [[nodiscard]] RandomItemList const& GetEquipmentNew(uint32 requiredLevel, InventoryType invType) const;
+    [[nodiscard]] RandomItemList const& GetEquipmentNew(uint32 level, InventoryType invType) const;
     [[nodiscard]] uint32 GetRandomItem(uint32 level, RandomItemType type, RandomItemPredicate* predicate = nullptr) const;
     [[nodiscard]] uint32 GetAmmo(uint32 level, uint32 subClass) const;
     [[nodiscard]] uint32 GetRandomPotion(uint32 level, uint32 effect) const;
@@ -240,6 +240,7 @@ private:
     [[nodiscard]] static bool CanUseItemStats(uint8 clazz, uint8 sp, uint8 ap, uint8 tank);
     [[nodiscard]] bool CanEquipItem(ItemTemplate const* proto, uint32 level) const;
     [[nodiscard]] std::vector<EquipmentSlots> const* GetViableSlots(InventoryType invType) const;
+    [[nodiscard]] uint32 NormalizeLevel(uint32 level) const;
 
 private:
     RandomItemMgr();
