@@ -1893,7 +1893,7 @@ void RandomItemMgr::BuildCacheEquip()
         if (proto->Class != ITEM_CLASS_WEAPON && proto->Class != ITEM_CLASS_ARMOR)
             continue;
 
-        // skip poor, legendary, artifact and heirloom quality
+        // skip legendary, artifact and heirloom quality
         if (proto->Quality > ITEM_QUALITY_EPIC)
             continue;
 
