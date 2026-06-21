@@ -99,6 +99,15 @@ RandomItemMgr::~RandomItemMgr()
 
 void RandomItemMgr::Init()
 {
+    // Prevent double initialization when the reload command is executed.
+    // Use exchange so only the first caller continues; others stop.
+    // NOTE: If someone implements reload/rebuild hash, update all getters from
+    //       returning by reference to returning by value. Also, replace all
+    //       DEFAULT_MAX_LEVEL maxLevel with randomBotMaxLevel and clear caches
+    //       before processing.
+    if (m_initialized.exchange(true))
+        return;
+
     BuildCacheItemInfo();
     // if (!LoadCacheEquip())
     //     BuildCacheEquip();

@@ -7,6 +7,7 @@
 #define _PLAYERBOT_RANDOMITEMMGR_H
 
 #include <array>
+#include <atomic>
 #include <map>
 #include <unordered_map>
 #include <unordered_set>
@@ -250,6 +251,7 @@ private:
     RandomItemMgr(RandomItemMgr&&) = delete;
     RandomItemMgr& operator=(RandomItemMgr&&) = delete;
 
+    std::atomic<bool> m_initialized{false};
     std::array<uint32, MAX_CLASSES> m_weaponProficiency = {};
 
     static std::unordered_set<uint32> itemCache;
